@@ -74,7 +74,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v34',
+  version:'v35',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -152,6 +152,9 @@ const audit3=['Never','Less than monthly','Monthly','Weekly','Daily or almost da
 const stageOpts=['Regular cycles','Cycles vary by 7+ days','No period for 60–89 days','No period for 3–11 months','No period for 12+ months','Periods hidden by contraception, surgery, or medication','Unsure'];
 
 /* ---------- Visibility rules ---------- */
+// SCOFF (Morgan, Reid & Lacey, BMJ 1999), public domain; positive at 2 or more
+const scoff=['Do you make yourself sick because you feel uncomfortably full?','Do you worry you have lost control over how much you eat?','Have you recently lost more than 14 pounds (one stone) in a 3-month period?','Do you believe yourself to be fat when others say you are too thin?','Would you say that food dominates your life?'];
+const edCompOpts=['Made yourself vomit','Used laxatives, water pills (diuretics), or diet pills','Fasted or ate very little for a day or more','Exercised hard to make up for eating','None'];
 const V={
   p8pos:()=>answered(state.p8)&&Number(state.p8)>0,
   phqAny:()=>phq.some((_,i)=>Number(state['p'+i])>0),
@@ -161,6 +164,8 @@ const isYes=id=>state[id]==='0';// Yes/No radios: value 0 = Yes
 V.cs2yes=()=>V.p8pos()&&isYes('cs2');
 V.cs6yes=()=>V.p8pos()&&isYes('cs6');
 V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
+V.ed=()=>state.edGate==='Yes';
+function scoffScore(){if(!V.ed())return null;const v=[0,1,2,3,4].map(i=>state['sc'+i]);if(!v.every(answered))return null;return v.filter(x=>x==='0').length}
 V.hitsOn=()=>state.hitsGate==='Answer now';
 V.trauma=()=>state.tGate==='Yes';
 V.pcPos=()=>{const r=pcScore();return r!==null&&r>=3};
@@ -199,7 +204,14 @@ const fields=[
   ['cog','select','Are changes in memory or thinking getting worse, getting in the way of daily life, or noticed by others?',['No','Yes','Not sure']],
   ['support','radio','Do you have people, activities, or routines that help you feel supported and more like yourself?',ynOpts],
   ['shape','select','Have you noticed changes in your weight, waistline, or body shape?',['Not at all','Mild','Moderate','Significant','Not sure']],
-  ['bodyImpact','select','How much have these changes affected how you feel about yourself?',['Not at all','A little','Moderately','A great deal','Not sure']]]},
+  ['bodyImpact','select','How much have these changes affected how you feel about yourself?',['Not at all','A little','Moderately','A great deal','Not sure']],
+  ['edGate','select','In the past 3 months, have worries about eating, weight, or body shape taken up a lot of your thoughts, or have you had times when eating felt out of control or you ate very little to control your weight?',['No','Yes','Prefer to discuss in session']],
+  ['edNote','note','Thank you. A few short questions help your psychotherapist understand this. Skip any you prefer not to answer.',null,{show:V.ed,tone:'info'}],
+  ...scoff.map((q,i)=>['sc'+i,'radio',(i+1)+'. '+q,yesNo,{show:V.ed}]),
+  ['edBinge','select','In the past 3 months, how often have you eaten an unusually large amount of food in a short time while feeling you couldn’t stop or control your eating?',['Never','Less than once a week','About once a week or more'],{show:V.ed}],
+  ['edDistress','radio','Are you upset or distressed by these episodes?',yesNo,{show:()=>V.ed()&&['Less than once a week','About once a week or more'].includes(state.edBinge)}],
+  ['edComp','checks','In the past 3 months, have you done any of these to control your weight or shape? (Tick all that apply)',edCompOpts,{show:V.ed}],
+  ['edPast','select','Have you ever been diagnosed with or treated for an eating disorder?',['No','Yes','Not sure'],{show:V.ed}]]},
 {section:'Health history',intro:'Skip anything you don’t know. This helps spot things a medical clinician should look at; treatment decisions belong with them.',items:[
   ['bleed','checks','Bleeding changes',groups.bleed],
   ['cardio','checks','New or unexplained heart or breathing symptoms',groups.cardio],
@@ -477,6 +489,23 @@ if(state.drug==='Yes')F.push(['clinical','Non-prescribed drug use or medication 
 {const pv=Array.from({length:9},(_,i)=>state['p'+i]);if(pv.every(answered)&&new Set(pv).size===1&&Number(pv[0])>0)F.push(['clinical','All nine PHQ-9 items answered the same ('+freq[Number(pv[0])].toLowerCase()+'). This may be accurate or a same-answer pattern; go through the items in session before relying on the total'+(Number(pv[0])===1?', which sits just below the usual cut-off of 10':'')+'.',false,null,null,4,'PHQ-9 same answer on every item'])}
 {const gs=score('g',7),mi=[['irritability',Number(state.m4)],['anxiety',Number(state.m5)]].filter(x=>x[1]>=2);if(gs!==null&&gs<=4&&mi.length)F.push(['clinical','GAD-7 '+gs+' (minimal) but MRS '+mi.map(x=>x[0]+' '+mrsOpts[x[1]].toLowerCase()).join(' and ')+'. Ask directly about anxiety and irritability; menopause-linked irritability may not be captured by the GAD-7.',false,null,null,4,'GAD-7 vs MRS anxiety mismatch'])}
 {const ps=score('p',9),psy=mrsScore(mrsScales[1]);if(ps!==null&&ps<10&&psy.score!==null&&psy.score>=7)F.push(['clinical','MRS psychological '+psy.score+'/16 (severe) but PHQ-9 '+ps+' (below 10). Mood symptoms may be under-reported on the PHQ-9 or concentrated in irritability, anxiety, and exhaustion; clarify in session.',false,null,null,4,'MRS psychological vs PHQ-9 mismatch'])}
+// Eating concerns (gated)
+{const SC=scoffScore(),comp=named('edComp'),vom=comp.includes('Made yourself vomit')||(V.ed()&&isYes('sc0')),lax=comp.includes('Used laxatives, water pills (diuretics), or diet pills');
+const fast=comp.includes('Fasted or ate very little for a day or more'),wl=V.ed()&&isYes('sc2'),bingeW=state.edBinge==='About once a week or more',binge=bingeW||state.edBinge==='Less than once a week',dist=isYes('edDistress');
+const pos=(SC!==null&&SC>=2)||(bingeW&&dist)||vom||lax;
+if(state.edGate==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss eating, weight, or body-shape concerns in session.',false,null,null,4,'Eating concerns: discuss in session']);
+if(SC!==null&&SC>=2)F.push(['clinical','SCOFF '+SC+' of 5 (positive at 2 or more): an eating disorder is likely. Confirm with a clinical interview against DSM-5 criteria; the EDE-Q can measure severity. The SCOFF was built for anorexia and bulimia and has not been validated specifically in women over 50, so read it as a prompt for interview.',false,null,null,3,'SCOFF positive ('+SC+'/5)']);
+else if(SC!==null)F.push(['clinical','SCOFF '+SC+' of 5, below the cut-off of 2. The SCOFF can miss binge eating, the most common pattern in midlife; see the binge-eating answers.',false,null,null,4,'SCOFF below cut-off']);
+else if(V.ed())F.push(['clinical','Eating concerns reported; SCOFF incomplete. Ask directly.',false,null,null,4,'SCOFF incomplete']);
+if(binge)F.push(['clinical','Loss-of-control overeating reported ('+state.edBinge.toLowerCase()+(state.edDistress?', '+(dist?'with':'without')+' distress':'')+'). '+(bingeW&&dist?'This fits the frequency and distress criteria for binge eating disorder if confirmed; ':'')+'Ask about eating in secret, eating when not hungry, and guilt afterward; a dedicated screener such as the BEDS-7 can be given in session.',false,null,null,bingeW&&dist?3:4,'Binge eating'+(bingeW?' (weekly or more)':'')]);
+if(vom||lax){const cardio=has('cardio','New or unexplained palpitations')||named('cardio').length>0;F.push(['medical','Purging reported ('+[vom?'self-induced vomiting':'',lax?'laxatives, diuretics, or diet pills':''].filter(Boolean).join('; ')+'). For the medical clinician: check electrolytes, especially potassium'+(cardio?'; low potassium is a cause to rule out for the reported heart symptoms':'')+'. Specialist eating-disorder referral is warranted for purging or medical instability.',false,null,cardio?'top':null,cardio?2:3,'Purging'+(cardio?' with heart symptoms':'')])}
+const earlyLoss=['Yes, before age 40','Yes, between ages 40 and 44'].includes(state.periodStop)||(has('hormoneTx','Both ovaries removed')&&validOvxAge()&&Number(state.ovxAge)<45);
+if((fast||wl)&&V.ed())F.push(['medical','Restriction or rapid weight loss reported ('+[fast?'fasting or eating very little':'',wl?'lost more than 14 pounds in 3 months':''].filter(Boolean).join('; ')+'). Medical review is recommended'+(earlyLoss?'; restriction adds to the bone-loss risk of early menopause, so bone density matters here':'; low intake also affects bone health after menopause')+'.',false,null,null,3,'Restriction or rapid weight loss']);
+if(pos)F.push(['medical','Possible eating disorder: tell the physician before restrictive diets, weight-loss medication, or surgery are recommended, because these can reactivate disordered eating.',false,null,null,3,'Weight-loss treatment caution']);
+if(pos&&V.p8pos())F.push(['clinical','Positive eating screen alongside thoughts of death (PHQ-9 item 9). Eating disorders, especially binge-purge patterns, raise suicide-attempt risk; include this in the risk assessment and safety plan.',false,null,null,2,'Eating screen + suicide-risk follow-up']);
+if(state.edPast==='Yes')F.push(['clinical','Past eating disorder diagnosis or treatment: ask about relapse; menopause and body changes can reactivate symptoms.',false,null,null,4,'Past eating disorder']);
+if(V.ed()&&!pos&&!binge&&!fast&&!wl)F.push(['clinical','Eating or body-shape worries reported, but the screens are negative. Body dissatisfaction is the strongest modifiable risk factor for disordered eating in women; treat body image as a therapy target in its own right.',false,null,null,4,'Body image concerns, screens negative']);
+if(state.edGate==='No'&&Number(state.p4)>=1&&['Moderately','A great deal'].includes(state.bodyImpact))F.push(['clinical','Appetite change (PHQ-9 item 5) and body changes affecting self-image '+state.bodyImpact.toLowerCase()+', but the eating-concerns question was answered No. Consider asking about eating directly; clarify whether item 5 meant poor appetite or overeating.',false,null,null,4,'Appetite + body-image: ask about eating'])}
 const A=auditC();
 if(A!==null&&A>=3){const freqOnly=audit2.indexOf(state.audit2)===0&&audit3.indexOf(state.audit3)===0;
 F.push(['clinical',(V.p8pos()?'Higher priority (alcohol use alongside thoughts of death or self-harm): ':'')+'AUDIT-C '+A+'/12, at or above the usual cut-off for women (3). '+(freqOnly?'The score comes from drinking frequency alone, so check actual intake before treating it as positive. ':'')+'AUDIT-C detects risky drinking better than it diagnoses alcohol use disorder.']);}
@@ -513,7 +542,7 @@ if(type==='check')return v?'Yes':'No';
 return answered(v)?String(v):'Not answered'}
 const flagKind=k=>k==='urgent'?'Immediate safety guidance':k==='prompt'?'Contact clinician soon':k==='medical'?'For medical clinician':'For clinical follow-up';
 const flagLabel=(k,t)=>(t?tierName[t]+' · ':'')+flagKind(k);
-const privateIds=['unsafe','hitsGate','h0','h1','h2','h3','h4','tGate','aceQ',...[0,1,2,3,4].map(i=>'pc'+i),...Array.from({length:20},(_,i)=>'pl'+i)];// never saved to browser storage
+const privateIds=['edGate','sc0','sc1','sc2','sc3','sc4','edBinge','edDistress','edComp','edPast','unsafe','hitsGate','h0','h1','h2','h3','h4','tGate','aceQ',...[0,1,2,3,4].map(i=>'pc'+i),...Array.from({length:20},(_,i)=>'pl'+i)];// never saved to browser storage
 function reportItems(section){return section.items.filter(it=>it[1]!=='note'&&it[0]!=='recover'&&isShown(it))}
 function summary(){read();const ps=score('p',9),gs=score('g',7);
 return {ps,gs,pa:countAnswered('p',9),ga:countAnswered('g',7),mrs:mrsScales.map(sc=>({...sc,...mrsScore(sc)})),aud:auditC(),hits:hitsScore(),cssrs:cssrsLevel(),flags:reportFlags()}}
@@ -534,6 +563,7 @@ add('GAD-7 anxiety',S.gs,0,21,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'],[
 S.mrs.forEach(m=>{let lo=0;const bands=m.bands.map(([hi,lab])=>{const b=[lo,hi===Infinity?m.max:hi,lab];lo=(hi===Infinity?m.max:hi)+1;return b});add(m.key==='total'?'MRS menopause symptoms':'MRS '+m.name.toLowerCase(),m.score,0,m.max,bands,['g','y','o','r'],m.score===null?m.n+' of '+m.items.length+' answered':null)});
 {const A=V.adhdSuspect()?asrsA():null;if(A)add('ASRS Part A, adult ADHD (screen)',A.n,0,6,[[0,3,'Below screening threshold'],[4,6,'Consistent with adult ADHD; evaluate']],['g','o'],null)}
 {const PC=pcScore();if(PC!==null)add('PC-PTSD-5 trauma screen',PC,0,5,[[0,2,'Below screening cut-off'],[3,5,'Positive screen; assess']],['g','o'],null);const PCL=pclScore();if(PCL)add('PCL-5 PTSD symptoms',PCL.total,0,80,[[0,30,'Below provisional cut-off'],[31,80,'At or above provisional cut-off']],['g','o'],null)}
+{const SC=scoffScore();if(SC!==null)add('SCOFF eating disorder (screen)',SC,0,5,[[0,1,'Below screening cut-off'],[2,5,'Positive screen; assess']],['g','o'],null)}
 add('AUDIT-C alcohol (screen)',S.aud,0,12,[[0,2,'Below screening cut-off'],[3,12,'At or above screening cut-off']],['g','o'],S.aud===null?'not all items answered':null);
 if(S.hits!==null)add('E-HITS relationship safety (screen)',S.hits,5,25,[[5,6,(Number(state.h0)>0||Number(state.h4)>0)?'Below total cut-off; item endorsed':'Below screening cut-off'],[7,25,'Positive screen']],['g','o'],null);
 return L.map(x=>({...x,units:x.max-x.min+1,band:x.score===null?null:x.bands.find(b=>x.score>=b[0]&&x.score<=b[1])}))}
