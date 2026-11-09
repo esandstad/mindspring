@@ -62,7 +62,7 @@ h4{font-size:15px;margin:16px 0 4px}.checkline{display:flex;gap:8px;align-items:
 .chips{display:grid;gap:8px;margin:8px 0}.chips div{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:6px}.chip{border:1px solid var(--field);border-radius:999px;padding:2px 10px;font-size:13px;white-space:nowrap}.chipna{color:var(--muted);border-style:dashed}
 @media print{.sev{break-inside:avoid}}
 input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:46px;text-align:left}input[type=date]::-webkit-date-and-time-value{text-align:left}
-.instr{font-size:18px;line-height:1.45;font-weight:700;color:var(--ink);margin:6px 0 14px;max-width:60ch}
+.instr{font-size:18px;line-height:1.45;font-weight:700;color:var(--ink);margin:6px 0 12px;max-width:60ch}#step0 .instr:first-of-type{font-size:21px}#step0 .instr:last-of-type{font-size:15px;font-weight:600;color:var(--muted)}
 .quickexit{position:fixed;right:max(12px,env(safe-area-inset-right,0px));top:max(12px,env(safe-area-inset-top,0px));z-index:20;background:var(--urgent);color:var(--card);padding:14px 20px;font-size:16px;box-shadow:0 4px 16px var(--shadow)}@media print{.quickexit{display:none}}
 .crisisbar{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 20px}.cbtn{flex:1 1 90px;text-align:center;padding:12px;border-radius:9px;background:var(--soft);color:var(--ink);font-weight:650;text-decoration:none;border:1px solid var(--line)}.cbtn:focus-visible{outline:3px solid var(--teal)}
 </style></head><body>
@@ -73,7 +73,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v31',
+  version:'v32',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -164,7 +164,7 @@ V.asrsB=()=>V.adhdSuspect()&&(asrsA()||{}).pos===true;
 
 /* ---------- Form definition: [id, type, label, options, {show, note}] ---------- */
 const fields=[
-{section:'Welcome',intro:'Your answers are never sent to a server. They stay only on this device while you fill this in and are erased when you close the page, unless you choose to save your progress or download your report. This check-in supports a conversation with your clinician. It cannot diagnose menopause, depression, or the cause of symptoms, and it does not replace urgent care.',items:[
+{section:'Welcome',intro:'Your privacy matters.\n\nYour answers stay on this device and are not automatically sent to anyone. They are not saved for later unless you choose to save your progress.\n\nWhen you finish, you can download your report and decide whether to share it with your psychotherapist.\n\nThis check-in supports a conversation with your clinician. It cannot diagnose menopause, depression, or the cause of symptoms, and it does not replace urgent care.',items:[
   ['name','text','Name or client code (optional)'],['date','date','Assessment date'],['age','number','Age in years'],
   ['ageNote','note','Please check your age. Enter a whole number between 18 and 110. Age-based checks are skipped until it is corrected.',null,{show:()=>answered(state.age)&&!validAge()}],
   ['recover','check','Save my progress on this device',null,{hint:'Off by default. Turn on only if you want to recover your answers after a page reload. Avoid on shared devices.'}]]},
@@ -263,7 +263,7 @@ else x+='<input id="f_'+id+'" type="'+type+'"'+(id==='age'?' min="18" max="110" 
 return x+'</div>'}
 
 function render(){
-el('steps').innerHTML=fields.map((s,i)=>'<section class="step" id="step'+i+'">'+(s.quickExit?'<button type="button" class="quickexit" id="quickExit">Quick exit</button>':'')+'<h2>'+escapeHtml(s.section)+'</h2>'+(s.intro?'<p class="instr">'+escapeHtml(s.intro)+'</p>':'')+s.items.map(makeField).join('')+'</section>').join('');
+el('steps').innerHTML=fields.map((s,i)=>'<section class="step" id="step'+i+'">'+(s.quickExit?'<button type="button" class="quickexit" id="quickExit">Quick exit</button>':'')+'<h2>'+escapeHtml(s.section)+'</h2>'+(s.intro?s.intro.split('\n\n').map(t=>'<p class="instr">'+escapeHtml(t)+'</p>').join(''):'')+s.items.map(makeField).join('')+'</section>').join('');
 el('f_date').value=new Date().toLocaleDateString('en-CA');
 el('steps').addEventListener('input',changed);el('steps').addEventListener('change',changed);
 el('prev').onclick=()=>move(-1);el('next').onclick=()=>move(1);
