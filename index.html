@@ -74,7 +74,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v32',
+  version:'v33',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -124,6 +124,12 @@ const hitsStem='Over the last 12 months, how often did your partner ';
 const hits=['physically hurt you?','insult you or talk down to you?','threaten you with harm?','scream or curse at you?','force you to have sexual activities?'];
 const hitsOpts=['Never','Rarely','Sometimes','Fairly often','Frequently'];
 const ynOpts=['No','Sometimes','Yes','Not sure'];
+// PC-PTSD-5 (VA National Center for PTSD, public domain). Yes = 0, No = 1 in yesNo. Cut-off used: 3 (VA general cut-off is 4; research suggests 3 for women).
+const pcIntro='Sometimes things happen to people that are unusually or especially frightening, horrible, or traumatic. For example: a serious accident or fire; a physical or sexual assault or abuse; an earthquake or flood; a war; seeing someone be killed or seriously injured; having a loved one die through homicide or suicide. Have you ever experienced this kind of event?';
+const pcItems=['had nightmares about the event(s) or thought about the event(s) when you did not want to?','tried hard not to think about the event(s) or went out of your way to avoid situations that reminded you of the event(s)?','been constantly on guard, watchful, or easily startled?','felt numb or detached from people, activities, or your surroundings?','felt guilty or unable to stop blaming yourself or others for the event(s) or any problems the event(s) may have caused?'];
+// PCL-5 (VA National Center for PTSD, public domain). 0-4 per item, total 0-80; provisional PTSD cut-off 31-33.
+const pclOpts=['Not at all','A little bit','Moderately','Quite a bit','Extremely'];
+const pclItems=['Repeated, disturbing, and unwanted memories of the stressful experience?','Repeated, disturbing dreams of the stressful experience?','Suddenly feeling or acting as if the stressful experience were actually happening again (as if you were actually back there reliving it)?','Feeling very upset when something reminded you of the stressful experience?','Having strong physical reactions when something reminded you of the stressful experience (for example, heart pounding, trouble breathing, sweating)?','Avoiding memories, thoughts, or feelings related to the stressful experience?','Avoiding external reminders of the stressful experience (for example, people, places, conversations, activities, objects, or situations)?','Trouble remembering important parts of the stressful experience?','Having strong negative beliefs about yourself, other people, or the world (for example, having thoughts such as: I am bad, there is something seriously wrong with me, no one can be trusted, the world is completely dangerous)?','Blaming yourself or someone else for the stressful experience or what happened after it?','Having strong negative feelings such as fear, horror, anger, guilt, or shame?','Loss of interest in activities that you used to enjoy?','Feeling distant or cut off from other people?','Trouble experiencing positive feelings (for example, being unable to feel happiness or have loving feelings for people close to you)?','Irritable behavior, angry outbursts, or acting aggressively?','Taking too many risks or doing things that could cause you harm?','Being “superalert” or watchful or on guard?','Feeling jumpy or easily startled?','Having difficulty concentrating?','Trouble falling or staying asleep?'];
 // ASRS-v1.1 Symptom Checklist (WHO / Kessler, Adler, Spencer). Rated over the past 6 months. Never=0 … Very Often=4.
 // Shaded (counting) threshold per item, from the official form: 2 = Sometimes or more, 3 = Often or more.
 const asrsOpts=['Never','Rarely','Sometimes','Often','Very Often'];
@@ -156,6 +162,8 @@ V.cs2yes=()=>V.p8pos()&&isYes('cs2');
 V.cs6yes=()=>V.p8pos()&&isYes('cs6');
 V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
 V.hitsOn=()=>state.hitsGate==='Answer now';
+V.trauma=()=>state.tGate==='Yes';
+V.pcPos=()=>{const r=pcScore();return r!==null&&r>=3};
 V.attnComplaint=()=>Number(state.p6)>=2||Number(state.m6)>=2||state.cog==='Yes';
 V.adhdHist=()=>has('history','ADHD (diagnosed)')||has('history','Attention problems since childhood, never diagnosed');
 V.adhdChildQ=()=>V.attnComplaint()&&!V.adhdHist();
@@ -219,6 +227,12 @@ const fields=[
   ['audit3','select','How often do you have 4 or more drinks on one occasion?',audit3,{show:V.drinks}],
   ['drug','select','Any non-prescribed drug use or medication misuse in the past year?',['No','Yes','Prefer not to answer']],
   ['pregnancy','checks','Optional, for your medical clinician: pregnancy history',groups.pregnancy]]},
+{section:'Difficult experiences',intro:'These questions ask about very stressful or frightening experiences. You can skip any question or talk about it in session instead.\n\nIf you start to feel overwhelmed, pause, breathe slowly, and notice your feet on the floor.\n\nThe Quick exit button clears this page right away. Answers on this page are never saved on this device.',quickExit:true,items:[
+  ['tGate','select',pcIntro,['No','Yes','Prefer to discuss in session']],
+  ...pcItems.map((q,i)=>['pc'+i,'radio','In the past month, have you '+q,yesNo,{show:V.trauma}]),
+  ['pclNote','note','Below is a list of problems that people sometimes have in response to a very stressful experience. Please read each problem carefully and choose how much you have been bothered by that problem in the past month.',null,{show:()=>V.pcPos(),tone:'info'}],
+  ...pclItems.map((q,i)=>['pl'+i,'radio',(i+1)+'. '+q,pclOpts,{show:()=>V.pcPos()}]),
+  ['aceQ','select','Were there difficult or painful experiences in your childhood that still affect you today?',['No','Yes','Prefer to discuss in session']]]},
 {section:'Safety at home',intro:'These questions help your psychotherapist understand your safety and relationships. Your answers will appear in your clinical report when you choose to share it. You may skip any question or discuss it privately during your session. Send your report only through your clinician’s secure channel, because someone else could open a downloaded copy. The Quick exit button (or Esc) clears this page right away, and answers on this page are never saved on this device.',quickExit:true,items:[
   ['unsafe','select','Do you feel unsafe at home right now?',['No','Yes','Prefer to discuss privately']],
   ['hitsGate','select','The next five questions are about a partner. “Partner” means a current or former partner.',['Answer now','Prefer to discuss privately','No partner (current or former) in the past 12 months']],
@@ -264,14 +278,14 @@ else x+='<input id="f_'+id+'" type="'+type+'"'+(id==='age'?' min="18" max="110" 
 return x+'</div>'}
 
 function render(){
-el('steps').innerHTML=fields.map((s,i)=>'<section class="step" id="step'+i+'">'+(s.quickExit?'<button type="button" class="quickexit" id="quickExit">Quick exit</button>':'')+'<h2>'+escapeHtml(s.section)+'</h2>'+(s.intro?s.intro.split('\n\n').map(t=>'<p class="instr">'+escapeHtml(t)+'</p>').join(''):'')+s.items.map(makeField).join('')+'</section>').join('');
+el('steps').innerHTML=fields.map((s,i)=>'<section class="step" id="step'+i+'">'+(s.quickExit?'<button type="button" class="quickexit" id="quickExit'+i+'">Quick exit</button>':'')+'<h2>'+escapeHtml(s.section)+'</h2>'+(s.intro?s.intro.split('\n\n').map(t=>'<p class="instr">'+escapeHtml(t)+'</p>').join(''):'')+s.items.map(makeField).join('')+'</section>').join('');
 el('f_date').value=new Date().toLocaleDateString('en-CA');
 el('steps').addEventListener('input',changed);el('steps').addEventListener('change',changed);
 el('prev').onclick=()=>move(-1);el('next').onclick=()=>move(1);
 el('pdf').onclick=downloadPDF;el('print').onclick=()=>{makeReport();window.print()};
 el('copy').onclick=copyReport;el('clear').onclick=clearAsk;
-el('quickExit').onclick=quickExit;
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&step===safetyStep)quickExit()});
+document.querySelectorAll('.quickexit').forEach(b=>b.onclick=quickExit);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&fields[step]&&fields[step].quickExit)quickExit()});
 el('reviewNote').textContent=CONFIG.reviewNote;
 
 window.addEventListener('beforeprint',()=>{makeReport();el('report').style.display='block'});
@@ -331,6 +345,8 @@ const complete=req.every(id=>answered(state[id]));
 return {level,yesItems,timingMissing,timingPending:timingMissing&&!final,complete,recent6:y('cs6')?(y('cs6b')?'within past 3 months':state.cs6b==='1'?'more than 3 months ago':'timing not answered (treated as high risk until clarified)'):null}}
 
 /* ---------- Flags ---------- */
+function pcScore(){if(!V.trauma())return null;const v=[0,1,2,3,4].map(i=>state['pc'+i]);return v.every(answered)?v.filter(x=>x==='0').length:null}
+function pclScore(){if(!V.pcPos())return null;const v=Array.from({length:20},(_,i)=>state['pl'+i]);if(!v.every(answered))return null;const n=v.map(Number),sum=a=>a.reduce((t,i)=>t+n[i],0);return {total:sum([...Array(20).keys()]),B:sum([0,1,2,3,4]),C:sum([5,6]),D:sum([7,8,9,10,11,12,13]),E:sum([14,15,16,17,18,19])}}
 function asrsA(){const v=[0,1,2,3,4,5].map(i=>state['a'+i]);if(!v.every(answered))return null;const n=v.filter((x,i)=>Number(x)>=asrsShade[i]).length;return {n,pos:n>=4}}
 function asrsB(){if(!V.asrsB())return null;const inat=[6,7,8,9,10],hyp=[11,12,13,14,15,16,17];const ans=i=>answered(state['a'+i]);if(![...inat,...hyp].some(ans))return null;const c=a=>a.filter(i=>ans(i)&&Number(state['a'+i])>=asrsShade[i]).length;return {inat:c(inat),hyp:c(hyp),answered:[...inat,...hyp].filter(ans).length}}
 function flags(final=true){const F=[];const age=Number(state.age);const hasAge=validAge();
@@ -420,6 +436,17 @@ if(AS.pos&&dx)F.push(['clinical','ASRS Part A: '+AS.n+' of 6 in the shaded range
 else if(AS.pos)F.push(['clinical','ASRS Part A positive: '+AS.n+' of 6 in the shaded range, highly consistent with adult ADHD; further evaluation is warranted. Childhood onset: '+(has('history','Attention problems since childhood, never diagnosed')?'reported':state.adhdChild==='Yes'?'reported':'not sure')+'. Perimenopause and poor sleep can raise these scores, so the evaluation should confirm childhood onset.'+bTxt]);
 else F.push(['clinical','ASRS Part A below the screening threshold ('+AS.n+' of 6 in the shaded range).'+(dx?' Current ADHD symptoms look controlled.':' Attention complaints may reflect sleep, mood, or menopause rather than ADHD.')])}
 else if(V.adhdSuspect()&&[0,1,2,3,4,5].some(i=>answered(state['a'+i])))F.push(['clinical','ASRS Part A incomplete: not scored.']);
+if(state.tGate==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss trauma history in session.']);
+const PC=pcScore(),PCL=pclScore();
+if(V.trauma()&&PC===null)F.push(['clinical','Trauma exposure reported; PC-PTSD-5 symptom questions incomplete. Ask directly.']);
+if(PC!==null&&PC>=3)F.push(['clinical','PC-PTSD-5 positive: '+PC+' of 5 (cut-off 3, used here for women; the VA general cut-off is 4). Probable PTSD; a full trauma assessment is warranted.']);
+else if(PC!==null)F.push(['clinical','Trauma exposure reported; PC-PTSD-5 '+PC+' of 5, below the screening cut-off. Ask about the event and its current impact.']);
+if(PCL)F.push(['clinical','PCL-5 total '+PCL.total+' of 80 ('+(PCL.total>=31?'at or above':'below')+' the provisional PTSD cut-off of 31–33). Clusters: intrusions '+PCL.B+'/20, avoidance '+PCL.C+'/8, negative thoughts and mood '+PCL.D+'/28, arousal and reactivity '+PCL.E+'/24. Items 15, 19, and 20 (irritability, concentration, sleep) overlap with menopause symptoms. Repeat to track change.']);
+else if(V.pcPos()&&Array.from({length:20},(_,i)=>state['pl'+i]).some(answered))F.push(['clinical','PCL-5 incomplete: not scored.']);
+if(V.pcPos()&&Number(state.pl15)>=2)F.push(['clinical','PCL-5 item 16 (taking risks or doing things that could cause harm) rated '+pclOpts[Number(state.pl15)].toLowerCase()+': ask directly about risky or self-harming behavior.']);
+{const st=likelyStage();if(((PC!==null&&PC>=3)||(PCL&&PCL.total>=31))&&(st.key==='early'||st.key==='late'))F.push(['clinical','Trauma symptoms during perimenopause: lower estradiol has been linked to weaker fear extinction, and trauma history to more hot flashes, insomnia, and depression in the transition. Treat both in parallel; neither explains the other away.'])}
+if(state.aceQ==='Yes')F.push(['clinical','Childhood experiences that still affect the client: explore childhood adversity in session (the full ACE questionnaire can be used there).']);
+else if(state.aceQ==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss childhood experiences in session.']);
 if(has('history','Bipolar disorder / mania / hypomania'))F.push(['clinical','History of bipolar disorder or mania/hypomania: assess before any antidepressant is considered.']);
 if(has('history','Prior suicide attempt'))F.push(['clinical','History of suicide attempt: higher-risk group; follow up regardless of current PHQ-9 total or screener level.']);
 if(has('history','Prior suicide attempt')&&state.cs6==='1')F.push(['clinical','Mismatch: “prior suicide attempt” ticked in history, but C-SSRS item 6 (ever done anything to end your life) answered No. Clarify directly.']);
@@ -439,7 +466,7 @@ const rank=f=>({urgent:0,prompt:1,medical:f[4]==='summary'?1.5:f[4]==='top'?2:3,
 return F.map((f,i)=>[f,i]).sort((a,b)=>rank(a[0])-rank(b[0])||a[1]-b[1]).map(x=>x[0])}
 const reportFlags=()=>flags();
 
-const safetyStep=fields.findIndex(s=>s.quickExit),phqStep=fields.findIndex(s=>s.section.startsWith('Mood'));
+const safetyStep=fields.findIndex(s=>s.section==='Safety at home'),phqStep=fields.findIndex(s=>s.section.startsWith('Mood'));
 function safetyLive(){const live=flags(step!==phqStep).filter(x=>(x[0]==='urgent'||x[0]==='prompt')&&(!x[2]||step===safetyStep));
 el('safetyLive').innerHTML=live.map(x=>'<div class="warning '+(x[0]==='urgent'?'urgent':'')+'"><strong>'+(x[3]||(x[0]==='urgent'?'Safety notice':'Please reach out soon'))+'</strong><p>'+escapeHtml(x[1])+'</p></div>').join('')}
 
@@ -453,7 +480,7 @@ if(type==='checks')return Array.isArray(v)&&v.length?v.join('; '):'Not answered'
 if(type==='check')return v?'Yes':'No';
 return answered(v)?String(v):'Not answered'}
 const flagLabel=k=>k==='urgent'?'Immediate safety guidance':k==='prompt'?'Contact clinician soon':k==='medical'?'For medical clinician':'For clinical follow-up';
-const privateIds=['unsafe','hitsGate','h0','h1','h2','h3','h4'];// never saved to browser storage
+const privateIds=['unsafe','hitsGate','h0','h1','h2','h3','h4','tGate','aceQ',...[0,1,2,3,4].map(i=>'pc'+i),...Array.from({length:20},(_,i)=>'pl'+i)];// never saved to browser storage
 function reportItems(section){return section.items.filter(it=>it[1]!=='note'&&it[0]!=='recover'&&isShown(it))}
 function summary(){read();const ps=score('p',9),gs=score('g',7);
 return {ps,gs,pa:countAnswered('p',9),ga:countAnswered('g',7),mrs:mrsScales.map(sc=>({...sc,...mrsScore(sc)})),aud:auditC(),hits:hitsScore(),cssrs:cssrsLevel(),flags:reportFlags()}}
@@ -473,6 +500,7 @@ add('PHQ-9 depression',S.ps,0,27,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'
 add('GAD-7 anxiety',S.gs,0,21,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'],[15,21,'Severe']],['g','y','o','r'],S.gs===null?S.ga+' of 7 answered':null);
 S.mrs.forEach(m=>{let lo=0;const bands=m.bands.map(([hi,lab])=>{const b=[lo,hi===Infinity?m.max:hi,lab];lo=(hi===Infinity?m.max:hi)+1;return b});add(m.key==='total'?'MRS menopause symptoms':'MRS '+m.name.toLowerCase(),m.score,0,m.max,bands,['g','y','o','r'],m.score===null?m.n+' of '+m.items.length+' answered':null)});
 {const A=V.adhdSuspect()?asrsA():null;if(A)add('ASRS Part A, adult ADHD (screen)',A.n,0,6,[[0,3,'Below screening threshold'],[4,6,'Consistent with adult ADHD; evaluate']],['g','o'],null)}
+{const PC=pcScore();if(PC!==null)add('PC-PTSD-5 trauma screen',PC,0,5,[[0,2,'Below screening cut-off'],[3,5,'Positive screen; assess']],['g','o'],null);const PCL=pclScore();if(PCL)add('PCL-5 PTSD symptoms',PCL.total,0,80,[[0,30,'Below provisional cut-off'],[31,80,'At or above provisional cut-off']],['g','o'],null)}
 add('AUDIT-C alcohol (screen)',S.aud,0,12,[[0,2,'Below screening cut-off'],[3,12,'At or above screening cut-off']],['g','o'],S.aud===null?'not all items answered':null);
 if(S.hits!==null)add('E-HITS relationship safety (screen)',S.hits,5,25,[[5,6,(Number(state.h0)>0||Number(state.h4)>0)?'Below total cut-off; item endorsed':'Below screening cut-off'],[7,25,'Positive screen']],['g','o'],null);
 return L.map(x=>({...x,units:x.max-x.min+1,band:x.score===null?null:x.bands.find(b=>x.score>=b[0]&&x.score<=b[1])}))}
@@ -505,6 +533,7 @@ if(c('clinical'))L.push(['Clinical follow-up',c('clinical')+' item'+(c('clinical
 const pp=phqParts(),f=[];
 if(S.ps!==null)f.push('PHQ-9 '+S.ps+' ('+sev(S.ps).toLowerCase()+(pp.phys!==null?'; mood and self-worth items '+pp.mood+', physical and concentration items '+pp.phys:'')+')');
 if(S.gs!==null)f.push('GAD-7 '+S.gs+' ('+gsev(S.gs).toLowerCase()+')');
+{const PCL=pclScore(),PC=pcScore();if(PCL)f.push('PCL-5 '+PCL.total+'/80');else if(PC!==null)f.push('PC-PTSD-5 '+PC+'/5')}
 const psy=S.mrs[1];if(psy.score!==null)f.push('MRS psychological '+psy.score+' ('+psy.band.toLowerCase()+')');
 if(f.length)L.push(['Therapy focus',f.join(' · ')]);return L}
 
