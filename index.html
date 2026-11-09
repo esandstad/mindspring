@@ -74,7 +74,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v35',
+  version:'v36',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -239,12 +239,13 @@ const fields=[
   ['audit3','select','How often do you have 4 or more drinks on one occasion?',audit3,{show:V.drinks}],
   ['drug','select','Any non-prescribed drug use or medication misuse in the past year?',['No','Yes','Prefer not to answer']],
   ['pregnancy','checks','Optional, for your medical clinician: pregnancy history',groups.pregnancy]]},
-{section:'Difficult experiences',intro:'These questions ask about very stressful or frightening experiences. You can skip any question or talk about it in session instead.\n\nIf you start to feel overwhelmed, pause, breathe slowly, and notice your feet on the floor.\n\nThe Quick exit button clears this page right away. Answers on this page are never saved on this device.',quickExit:true,items:[
-  ['tGate','select',pcIntro,['No','Yes','Prefer to discuss in session']],
+{section:'Difficult Experiences',intro:'Some experiences can continue to affect us long after they happen. The following questions help us understand whether past experiences may be affecting how you feel today.\n\nYou can skip any question or choose to discuss it during your session instead.\n\nIf you start to feel overwhelmed, pause, breathe slowly, and notice your feet on the floor. The Quick exit button clears this page right away. Answers on this page are never saved on this device.',quickExit:true,items:[
+  ['tGate','select','1. Have you ever experienced or witnessed something frightening, overwhelming, or traumatic, such as an accident, violence, abuse, or the sudden loss of someone close to you?',['No','Yes','Prefer to discuss in session']],
+  ['aceQ','select','2. Were there difficult experiences during your childhood or teenage years that you feel may still affect you today?',['No','Yes','Prefer to discuss in session']],
+  ['pcNote','note','About the experience or experiences in question 1:',null,{show:V.trauma,tone:'info'}],
   ...pcItems.map((q,i)=>['pc'+i,'radio','In the past month, have you '+q,yesNo,{show:V.trauma}]),
   ['pclNote','note','Below is a list of problems that people sometimes have in response to a very stressful experience. Please read each problem carefully and choose how much you have been bothered by that problem in the past month.',null,{show:()=>V.pcPos(),tone:'info'}],
-  ...pclItems.map((q,i)=>['pl'+i,'radio',(i+1)+'. '+q,pclOpts,{show:()=>V.pcPos()}]),
-  ['aceQ','select','Were there difficult or painful experiences in your childhood that still affect you today?',['No','Yes','Prefer to discuss in session']]]},
+  ...pclItems.map((q,i)=>['pl'+i,'radio',(i+1)+'. '+q,pclOpts,{show:()=>V.pcPos()}])]},
 {section:'Safety at home',intro:'These questions help your psychotherapist understand your safety and relationships. Your answers will appear in your clinical report when you choose to share it. You may skip any question or discuss it privately during your session. Send your report only through your clinician’s secure channel, because someone else could open a downloaded copy. The Quick exit button (or Esc) clears this page right away, and answers on this page are never saved on this device.',quickExit:true,items:[
   ['unsafe','select','Do you feel unsafe at home right now?',['No','Yes','Prefer to discuss privately']],
   ['hitsGate','select','The next five questions are about a partner. “Partner” means a current or former partner.',['Answer now','Prefer to discuss privately','No partner (current or former) in the past 12 months']],
