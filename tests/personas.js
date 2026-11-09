@@ -229,4 +229,17 @@ ok('no 1-business-day suicide row',!H(r.glance,/^Within 1 business day/),r.glanc
 await p.click('input[name=edComp][value="Made yourself vomit"]');await p.click('input[name=edComp][value="None"]');
 const a=await p.evaluate(()=>state.edComp);await p.click('input[name=edComp][value="Made yourself vomit"]');const b2=await p.evaluate(()=>state.edComp);
 console.log('\nP36 None exclusive');ok('None clears others, and others clear None',JSON.stringify(a)==='["None"]'&&JSON.stringify(b2)==='["Made yourself vomit"]',[a,b2]);await c.close()}
+
+// P37 — 50, severe hot flushes, no MHT, AUDIT-C 6 with PHQ 11: hot-flush flag tier 3; alcohol raised to tier 3.
+r=await run(b,mk(`sel('age','50');[2,1,2,2,1,1,1,1,0].forEach((v,i)=>set('p'+i,v));[4,1,3,1,2,1,2,1,0,1,1].forEach((v,i)=>set('m'+i,v));sel('mht','No');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');`));
+console.log('\nP37 severe hot flushes untreated + alcohol with depression');
+ok('hot-flush treatment flag',H(r.flags,/^medical: Hot flushes and sweating rated very severe with no current hormone therapy.*Hormone therapy is the most effective.*clinical hypnosis/),r.flags);
+ok('alcohol raised to 7 days',H(r.glance,/^Within 7 days: .*AUDIT-C \d+\/12 with depression \(PHQ-9 11\) and severe sleep problems/),r.glance);
+// P38 — on MHT: no hot-flush flag; breast cancer + tamoxifen: non-hormonal wording; alcohol frequency only: stays next session.
+r=await run(b,mk(`sel('age','56');[0,0,1,0,0,0,0,0,0].forEach((v,i)=>set('p'+i,v));set('m0',3);chk('hormoneTx','Tamoxifen');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');sel('mht','No');sel('audit1','4 or more times a week');sel('audit2','1 or 2');sel('audit3','Never');`));
+console.log('\nP38 cancer history + tamoxifen, frequency-only drinking');
+ok('non-hormonal wording with tamoxifen caution',H(r.flags,/hormone therapy is usually avoided.*avoid paroxetine and fluoxetine/),r.flags);
+ok('frequency-only alcohol not raised',H(r.glance,/^Next session: .*AUDIT-C/)&&!H(r.flags,/Raised priority/),r.glance);
+r=await run(b,mk(`sel('age','52');set('m0',4);sel('mht','Yes');`));
+ok('no hot-flush flag on MHT',!H(r.flags,/Hot flushes and sweating rated/),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();
