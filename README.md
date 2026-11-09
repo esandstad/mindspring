@@ -12,6 +12,8 @@ Answers are processed only on the client's device. The app never sends answers a
 - `src/style.css`, `src/icon.b64` — styles and home-screen icon.
 - `src/build.py` — builds `index.html`, `version.json`, and `src/build/artifact.html` (the Claude-hosted copy, not committed).
 - `tests/regression.js`, `tests/personas.js` — automated checks (Playwright). Personas are synthetic.
+- `tests/sweep.js` — random profiles of women 40–60, checking internal rules (tiers, staging, hidden answers, score ranges, PDF).
+- `tests/scenarios.js` — 12 realistic cases printed for clinical review.
 - `publish.sh` — build, test, commit, push.
 
 ## Making an update

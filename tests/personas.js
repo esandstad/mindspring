@@ -217,4 +217,16 @@ console.log('\nP34 40, long-standing constipation IBS pattern');
 ok('constipation medical review',H(r.flags,/Mostly constipation: ask the physician/),r.flags);
 ok('IBS constipation type, needs confirmation',H(r.flags,/Pattern consistent with IBS \(constipation type\).*IBS needs medical confirmation/),r.flags);
 ok('no alarm',!H(r.flags,/alarm/),r.flags);
+
+// P35 — 52, item 9 more than half the days, C-SSRS items 1+2 only (complete): urgent with explained reason, all suicide items in Today.
+r=await run(b,mk(`sel('age','52');[3,3,2,2,2,3,2,0,2].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',0);read();set('cs3',1);set('cs4',1);set('cs5',1);set('cs6',1);set('nssi',1);`));
+console.log('\nP35 frequent item 9 with low C-SSRS');
+ok('urgent label gives real reason',H(r.glance,/^Today: 3 items: PHQ-9 item 9 positive: item 9 more than half the days; Why urgent despite low screen; Suicide-risk follow-up/),r.glance);
+ok('no "screener not completed"',!H(r.glance,/screener not completed/),r.glance);
+ok('no 1-business-day suicide row',!H(r.glance,/^Within 1 business day/),r.glance);
+// P36 — None is exclusive on new checklists (real clicks).
+{const c=await b.newContext();const p=await c.newPage();await p.goto('file://'+process.argv[2]);await p.evaluate(()=>{el('f_edGate').value='Yes';read();step=4;show()});
+await p.click('input[name=edComp][value="Made yourself vomit"]');await p.click('input[name=edComp][value="None"]');
+const a=await p.evaluate(()=>state.edComp);await p.click('input[name=edComp][value="Made yourself vomit"]');const b2=await p.evaluate(()=>state.edComp);
+console.log('\nP36 None exclusive');ok('None clears others, and others clear None',JSON.stringify(a)==='["None"]'&&JSON.stringify(b2)==='["Made yourself vomit"]',[a,b2]);await c.close()}
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();
