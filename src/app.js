@@ -1,0 +1,682 @@
+'use strict';
+document.documentElement.classList.add('js');
+
+/* ---------- Settings Erick can edit ---------- */
+const CONFIG={
+  version:'v40',
+  clinician:'Erick Sandstad, Psychotherapist',
+  // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
+  reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
+  // What a client with MODERATE suicide-screen results should do. Edit to match your real response time.
+  moderateContact:'Please contact your clinician today, or by the next business day at the latest, and say you completed this check-in.',
+  // Where the Safety-at-home quick-exit button sends the page
+  quickExitUrl:'https://weather.com',
+  // How the client screen treats a "yes" to C-SSRS item 2 (active thoughts, no method or intent), which Columbia triage rates LOW:
+  //   false      = follow Columbia: softer amber "share with your clinician" notice
+  //   'moderate' = show the moderate "contact your clinician soon" notice with moderateContact and 988
+  //   true       = red emergency notice
+  redForActiveIdeation:'moderate'
+};
+const STORE='mindspring-'+CONFIG.version;
+
+/* ---------- Instruments ---------- */
+const phq=['Little interest or pleasure in doing things','Feeling down, depressed, or hopeless','Trouble falling or staying asleep, or sleeping too much','Feeling tired or having little energy','Poor appetite or overeating','Feeling bad about yourself — or that you are a failure or have let yourself or your family down','Trouble concentrating on things, such as reading the newspaper or watching television','Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual','Thoughts that you would be better off dead or of hurting yourself in some way'];
+const gad=['Feeling nervous, anxious, or on edge','Not being able to stop or control worrying','Worrying too much about different things','Trouble relaxing','Being so restless that it is hard to sit still','Becoming easily annoyed or irritable','Feeling afraid as if something awful might happen'];
+const freq=['Not at all','Several days','More than half the days','Nearly every day'];
+const difficulty=['Not difficult at all','Somewhat difficult','Very difficult','Extremely difficult'];
+const difficultyQ='If you checked off any problems, how difficult have these problems made it for you to do your work, take care of things at home, or get along with other people?';
+// Menopause Rating Scale (Heinemann et al.), English wording
+const mrs=['Hot flushes, sweating (episodes of sweating)','Heart discomfort (unusual awareness of heart beat, heart skipping, heart racing, tightness)','Sleep problems (difficulty in falling asleep, difficulty in sleeping through, waking up early)','Depressive mood (feeling down, sad, on the verge of tears, lack of drive, mood swings)','Irritability (feeling nervous, inner tension, feeling aggressive)','Anxiety (inner restlessness, feeling panicky)','Physical and mental exhaustion (general decrease in performance, impaired memory, decrease in concentration, forgetfulness)','Sexual problems (change in sexual desire, in sexual activity and satisfaction)','Bladder problems (difficulty in urinating, increased need to urinate, bladder incontinence)','Dryness of vagina (sensation of dryness or burning in the vagina, difficulty with sexual intercourse)','Joint and muscular discomfort (pain in the joints, rheumatoid complaints)'];
+const mrsShort=['Hot flushes, sweating','Heart discomfort','Sleep problems','Depressive mood','Irritability','Anxiety','Physical and mental exhaustion','Sexual problems','Bladder problems','Dryness of vagina','Joint and muscular discomfort'];
+const mrsOpts=['None','Mild','Moderate','Severe','Very severe'];
+// Subscales and severity bands: Heinemann et al. 2004, Health Qual Life Outcomes 2:45, Table 6
+const mrsScales=[
+  {key:'total',name:'MRS total',items:[0,1,2,3,4,5,6,7,8,9,10],max:44,bands:[[4,'No or little'],[8,'Mild'],[16,'Moderate'],[Infinity,'Severe']]},
+  {key:'psy',name:'Psychological',items:[3,4,5,6],max:16,bands:[[1,'No or little'],[3,'Mild'],[6,'Moderate'],[Infinity,'Severe']]},
+  {key:'som',name:'Somatic',items:[0,1,2,10],max:16,bands:[[2,'No or little'],[4,'Mild'],[8,'Moderate'],[Infinity,'Severe']]},
+  {key:'uro',name:'Urogenital',items:[7,8,9],max:12,bands:[[0,'No or little'],[1,'Mild'],[3,'Moderate'],[Infinity,'Severe']]}
+];
+// C-SSRS Screener, recent (Columbia Lighthouse Project)
+const yesNo=['Yes','No'];
+const cssrs=[
+  ['cs1','In the past month: Have you wished you were dead or wished you could go to sleep and not wake up?'],
+  ['cs2','In the past month: Have you actually had any thoughts of killing yourself?'],
+  ['cs3','In the past month: Have you been thinking about how you might do this?'],
+  ['cs4','In the past month: Have you had these thoughts and had some intention of acting on them?'],
+  ['cs5','In the past month: Have you started to work out or worked out the details of how to kill yourself? Did you intend to carry out this plan?'],
+  ['cs6','In your lifetime: Have you ever done anything, started to do anything, or prepared to do anything to end your life?'],
+  ['cs6b','Was this within the past three months?']
+];
+// HITS (Sherin et al. 1998); Never=1 … Frequently=5, total 4–20, positive >10
+// E-HITS (extended HITS): Never=1 … Frequently=5, total 5–25, positive at 7 or more
+const hitsStem='Over the last 12 months, how often did your partner ';
+const hits=['physically hurt you?','insult you or talk down to you?','threaten you with harm?','scream or curse at you?','force you to have sexual activities?'];
+const hitsOpts=['Never','Rarely','Sometimes','Fairly often','Frequently'];
+const ynOpts=['No','Sometimes','Yes','Not sure'];
+// PC-PTSD-5 (VA National Center for PTSD, public domain). Yes = 0, No = 1 in yesNo. Cut-off used: 3 (VA general cut-off is 4; research suggests 3 for women).
+const pcIntro='Sometimes things happen to people that are unusually or especially frightening, horrible, or traumatic. For example: a serious accident or fire; a physical or sexual assault or abuse; an earthquake or flood; a war; seeing someone be killed or seriously injured; having a loved one die through homicide or suicide. Have you ever experienced this kind of event?';
+const pcItems=['had nightmares about the event(s) or thought about the event(s) when you did not want to?','tried hard not to think about the event(s) or went out of your way to avoid situations that reminded you of the event(s)?','been constantly on guard, watchful, or easily startled?','felt numb or detached from people, activities, or your surroundings?','felt guilty or unable to stop blaming yourself or others for the event(s) or any problems the event(s) may have caused?'];
+// PCL-5 (VA National Center for PTSD, public domain). 0-4 per item, total 0-80; provisional PTSD cut-off 31-33.
+const pclOpts=['Not at all','A little bit','Moderately','Quite a bit','Extremely'];
+const pclItems=['Repeated, disturbing, and unwanted memories of the stressful experience?','Repeated, disturbing dreams of the stressful experience?','Suddenly feeling or acting as if the stressful experience were actually happening again (as if you were actually back there reliving it)?','Feeling very upset when something reminded you of the stressful experience?','Having strong physical reactions when something reminded you of the stressful experience (for example, heart pounding, trouble breathing, sweating)?','Avoiding memories, thoughts, or feelings related to the stressful experience?','Avoiding external reminders of the stressful experience (for example, people, places, conversations, activities, objects, or situations)?','Trouble remembering important parts of the stressful experience?','Having strong negative beliefs about yourself, other people, or the world (for example, having thoughts such as: I am bad, there is something seriously wrong with me, no one can be trusted, the world is completely dangerous)?','Blaming yourself or someone else for the stressful experience or what happened after it?','Having strong negative feelings such as fear, horror, anger, guilt, or shame?','Loss of interest in activities that you used to enjoy?','Feeling distant or cut off from other people?','Trouble experiencing positive feelings (for example, being unable to feel happiness or have loving feelings for people close to you)?','Irritable behavior, angry outbursts, or acting aggressively?','Taking too many risks or doing things that could cause you harm?','Being “superalert” or watchful or on guard?','Feeling jumpy or easily startled?','Having difficulty concentrating?','Trouble falling or staying asleep?'];
+// ASRS-v1.1 Symptom Checklist (WHO / Kessler, Adler, Spencer). Rated over the past 6 months. Never=0 … Very Often=4.
+// Shaded (counting) threshold per item, from the official form: 2 = Sometimes or more, 3 = Often or more.
+const asrsOpts=['Never','Rarely','Sometimes','Often','Very Often'];
+const asrsItems=['How often do you have trouble wrapping up the final details of a project, once the challenging parts have been done?','How often do you have difficulty getting things in order when you have to do a task that requires organization?','How often do you have problems remembering appointments or obligations?','When you have a task that requires a lot of thought, how often do you avoid or delay getting started?','How often do you fidget or squirm with your hands or feet when you have to sit down for a long time?','How often do you feel overly active and compelled to do things, like you were driven by a motor?',
+'How often do you make careless mistakes when you have to work on a boring or difficult project?','How often do you have difficulty keeping your attention when you are doing boring or repetitive work?','How often do you have difficulty concentrating on what people say to you, even when they are speaking to you directly?','How often do you misplace or have difficulty finding things at home or at work?','How often are you distracted by activity or noise around you?','How often do you leave your seat in meetings or other situations in which you are expected to remain seated?','How often do you feel restless or fidgety?','How often do you have difficulty unwinding and relaxing when you have time to yourself?','How often do you find yourself talking too much when you are in social situations?','When you’re in a conversation, how often do you find yourself finishing the sentences of the people you are talking to, before they can finish them themselves?','How often do you have difficulty waiting your turn in situations when turn taking is required?','How often do you interrupt others when they are busy?'];
+const asrsShade=[2,2,2,3,3,3, 3,3,2,3,3,2,3,3,3,2,3,2];
+const domains=[['d1','Sleep and recovery','Do poor nights of sleep tend to precede worse mood or concentration?'],['d2','Life circumstances','Do relationship, caregiving, work, or other stressors coincide with worse symptoms?'],['d3','Worry and self-criticism','Do worry or self-criticism tend to make your distress worse?']];
+const groups={
+  bleed:['Heavy or prolonged bleeding','Bleeding between periods','Bleeding after sex','Bleeding after 12 months without a period','None'],
+  cardio:['Chest pain, pressure, or tightness','Shortness of breath','Fainting or near-fainting','New or unexplained palpitations','None'],
+  other:['Heat intolerance, tremor, or unexplained weight loss','Unexplained weight loss with fever or drenching night sweats','Episodes of severe headache, sweating, and racing heart','Flushing with diarrhea or wheezing','Milky nipple discharge, or headaches with changes in vision','Loud snoring or witnessed breathing pauses','None'],
+  hormoneTx:['Hysterectomy (uterus removed), ovaries kept','Both ovaries removed','Chemotherapy','Pelvic radiation','Tamoxifen','Aromatase inhibitor (for example, letrozole or anastrozole)','GnRH medication (for example, Lupron)','Breast, endometrial, or other hormone-sensitive cancer','None'],
+  history:['Prior depression','PMDD','ADHD (diagnosed)','Attention problems since childhood, never diagnosed','Postpartum depression','Anxiety disorder','Bipolar disorder / mania / hypomania','Prior suicide attempt','Self-harm without wanting to die','Psychiatric hospitalization','Family history of mood disorder or suicide','None'],
+  contraNow:['Pill, patch, or ring','Hormonal IUD','Contraceptive implant','None'],
+  pregnancy:['Gestational diabetes','Preeclampsia or pregnancy-related high blood pressure','Preterm birth','None']
+};
+const audit1=['Never','Monthly or less','2–4 times a month','2–3 times a week','4 or more times a week'];
+const audit2=['1 or 2','3 or 4','5 or 6','7 to 9','10 or more'];
+const audit3=['Never','Less than monthly','Monthly','Weekly','Daily or almost daily'];
+const stageOpts=['Regular cycles','Cycles vary by 7+ days','No period for 60–89 days','No period for 3–11 months','No period for 12+ months','Periods hidden by contraception, surgery, or medication','Unsure'];
+
+/* ---------- Visibility rules ---------- */
+// SCOFF (Morgan, Reid & Lacey, BMJ 1999), public domain; positive at 2 or more
+const scoff=['Do you make yourself sick because you feel uncomfortably full?','Do you worry you have lost control over how much you eat?','Have you recently lost more than 14 pounds (one stone) in a 3-month period?','Do you believe yourself to be fat when others say you are too thin?','Would you say that food dominates your life?'];
+const edCompOpts=['Made yourself vomit','Used laxatives, water pills (diuretics), or diet pills','Fasted or ate very little for a day or more','Exercised hard to make up for eating','None'];
+const V={
+  p8pos:()=>answered(state.p8)&&Number(state.p8)>0,
+  phqAny:()=>phq.some((_,i)=>Number(state['p'+i])>0),
+  gadAny:()=>gad.some((_,i)=>Number(state['g'+i])>0),
+};
+const isYes=id=>state[id]==='0';// Yes/No radios: value 0 = Yes
+V.cs2yes=()=>V.p8pos()&&isYes('cs2');
+V.cs6yes=()=>V.p8pos()&&isYes('cs6');
+V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
+V.ed=()=>state.edGate==='Yes';
+function scoffScore(){if(!V.ed())return null;const v=[0,1,2,3,4].map(i=>state['sc'+i]);if(!v.every(answered))return null;return v.filter(x=>x==='0').length}
+V.hitsOn=()=>state.hitsGate==='Answer now';
+V.trauma=()=>state.tGate==='Yes';
+V.pcPos=()=>{const r=pcScore();return r!==null&&r>=3};
+V.attnComplaint=()=>Number(state.p6)>=2||Number(state.m6)>=2||state.cog==='Yes';
+V.adhdHist=()=>has('history','ADHD (diagnosed)')||has('history','Attention problems since childhood, never diagnosed');
+V.adhdChildQ=()=>V.attnComplaint()&&!V.adhdHist();
+V.adhdSuspect=()=>V.adhdHist()||(V.adhdChildQ()&&['Yes','Not sure'].includes(state.adhdChild));
+V.asrsB=()=>V.adhdSuspect()&&(asrsA()||{}).pos===true;
+
+
+/* ---------- Form definition: [id, type, label, options, {show, note}] ---------- */
+const fields=[
+{section:'Welcome',intro:'Your privacy matters.\n\nYour answers stay on this device and are not automatically sent to anyone. They are not saved for later unless you choose to save your progress.\n\nWhen you finish, you can download your report and decide whether to share it with your psychotherapist.\n\nThis check-in supports a conversation with your clinician. It cannot diagnose menopause, depression, or the cause of symptoms, and it does not replace urgent care.',items:[
+  ['name','text','Name or client code (optional)'],['date','date','Assessment date'],['age','number','Age in years'],
+  ['ageNote','note','Please check your age. Enter a whole number between 18 and 110. Age-based checks are skipped until it is corrected.',null,{show:()=>answered(state.age)&&!validAge()}],
+  ['recover','check','Save my progress on this device',null,{hint:'Off by default. Turn on only if you want to recover your answers after a page reload. Avoid on shared devices.'}]]},
+{section:'Mood · PHQ-9',intro:'Over the last 2 weeks, how often have you been bothered by any of the following problems?',items:[
+  ...phq.map((q,i)=>['p'+i,'radio',(i+1)+'. '+q,freq]),
+  ['csNote','note','You answered that you have had thoughts of being better off dead or of hurting yourself. These next questions help your clinician understand what that has been like. Each question says what time period it covers. If you are in danger right now, call 911 or call or text 988.',null,{show:V.p8pos,tone:'urgent'}],
+  ...cssrs.slice(0,2).map(([id,q])=>[id,'radio',q,yesNo,{show:V.p8pos}]),
+  ...cssrs.slice(2,5).map(([id,q])=>[id,'radio',q,yesNo,{show:V.cs2yes}]),
+  ['cs6','radio',cssrs[5][1],yesNo,{show:V.p8pos}],
+  ['cs6b','radio',cssrs[6][1],yesNo,{show:V.cs6yes}],
+  ['nssi','radio','In the past month: Have you hurt yourself on purpose without wanting to die (for example, cutting or burning)?',yesNo,{show:V.p8pos}],
+  ['csPrefer','check','I’d rather talk about these questions directly with my clinician',null,{show:V.p8pos}],
+  ['phqImpact','radio',difficultyQ,difficulty,{show:V.phqAny}]]},
+{section:'Anxiety · GAD-7',intro:'Over the last 2 weeks, how often have you been bothered by the following problems?',items:[
+  ...gad.map((q,i)=>['g'+i,'radio',(i+1)+'. '+q,freq]),
+  ['gadImpact','radio',difficultyQ,difficulty,{show:V.gadAny}]]},
+{section:'Menopause symptoms · MRS',intro:'Which of the following symptoms apply to you at this time? Please mark the appropriate box for each symptom. For symptoms that do not apply, please mark “none.”',items:mrs.map((q,i)=>['m'+i,'radio',(i+1)+'. '+q,mrsOpts])},
+{section:'Timing and patterns',intro:'Answer for the past 3 months unless a question says otherwise. These questions describe patterns; they do not show what caused your symptoms.',items:[
+  ['stage','select','Which best describes your menstrual pattern?',stageOpts,{hint:'Count from your last bleeding of any kind, including spotting. If your periods stopped years ago, choose “No period for 12+ months.”'}],
+  ['last','date','First day of your last menstrual period (optional)'],
+  ['onset','select','When did mood or thinking changes begin?',['Before cycle changes','Around cycle changes, hot flashes, or night sweats','After cycle changes','No noticeable change','Unsure']],
+  ...domains.map(([id,,q])=>[id,'radio',q,ynOpts]),
+  ['cog','select','Are changes in memory or thinking getting worse, getting in the way of daily life, or noticed by others?',['No','Yes','Not sure']],
+  ['support','radio','Do you have people, activities, or routines that help you feel supported and more like yourself?',ynOpts],
+  ['shape','select','Have you noticed changes in your weight, waistline, or body shape?',['Not at all','Mild','Moderate','Significant','Not sure']],
+  ['bodyImpact','select','How much have these changes affected how you feel about yourself?',['Not at all','A little','Moderately','A great deal','Not sure']],
+  ['edGate','select','In the past 3 months, have worries about eating, weight, or body shape taken up a lot of your thoughts, or have you had times when eating felt out of control or you ate very little to control your weight?',['No','Yes','Prefer to discuss in session']],
+  ['edNote','note','Thank you. A few short questions help your psychotherapist understand this. Skip any you prefer not to answer.',null,{show:V.ed,tone:'info'}],
+  ...scoff.map((q,i)=>['sc'+i,'radio',(i+1)+'. '+q,yesNo,{show:V.ed}]),
+  ['edBinge','select','In the past 3 months, how often have you eaten an unusually large amount of food in a short time while feeling you couldn’t stop or control your eating?',['Never','Less than once a week','About once a week or more'],{show:V.ed}],
+  ['edDistress','radio','Are you upset or distressed by these episodes?',yesNo,{show:()=>V.ed()&&['Less than once a week','About once a week or more'].includes(state.edBinge)}],
+  ['edComp','checks','In the past 3 months, have you done any of these to control your weight or shape? (Tick all that apply)',edCompOpts,{show:V.ed}],
+  ['edPast','select','Have you ever been diagnosed with or treated for an eating disorder?',['No','Yes','Not sure'],{show:V.ed}]]},
+{section:'Health history',intro:'Skip anything you don’t know. This helps spot things a medical clinician should look at; treatment decisions belong with them.',items:[
+  ['bleed','checks','Bleeding changes',groups.bleed],
+  ['cardio','checks','New or unexplained heart or breathing symptoms',groups.cardio],
+  ['other','checks','Other symptoms',groups.other],
+  ['hormoneTx','checks','Treatments or history that affect hormones',groups.hormoneTx],
+  ['ovxAge','number','How old were you when both ovaries were removed?',null,{show:()=>has('hormoneTx','Both ovaries removed')}],
+  ['ovxAgeNote','note','Please check this age. It should be a whole number and can’t be higher than your current age.',null,{show:()=>has('hormoneTx','Both ovaries removed')&&answered(state.ovxAge)&&!validOvxAge()}],
+  ['contraNow','checks','Hormonal contraception you are using now',groups.contraNow],
+  ['injection','select','Have you had a contraceptive injection (for example, Depo-Provera) in the past 12 months?',['No','Yes','Not sure']],
+  ['mht','select','Are you currently using menopausal hormone therapy (estrogen, with or without progestogen)?',['No','Yes','Not sure']],
+  ['periodStop','select','Did your periods stop for good (12 months or more without one) before age 45?',['No','Yes, before age 40','Yes, between ages 40 and 44','Unsure','Not applicable'],{show:()=>!periodsMasked()&&!(has('hormoneTx','Both ovaries removed')&&validOvxAge())}],
+  ['pregPossible','select','Could you be pregnant?',['No','Yes','Unsure','Not applicable']],
+  ['hormones','textarea','Details about hormonal contraception, hormone therapy, or testosterone (creams, gels, injections, or pellets): what, current or past, and for how long (optional)'],
+  ['meds','textarea','Other medications (including antidepressants, blood pressure medicines, and pain medicines), major medical conditions, or thyroid concerns (optional)'],
+  ['history','checks','Mental health history',groups.history],
+  ['adhdMed','select','Are you currently taking ADHD medication (for example, a stimulant)?',['No','Yes','Not sure']],
+  ['adhdChild','select','Have problems with attention, organization, or restlessness been part of your life since childhood (before age 12)?',['No','Yes','Not sure'],{show:()=>V.adhdChildQ()}],
+  ['asrsNote','note','A few questions about attention and focus (Adult ADHD Self-Report Scale, Part A). Rate how you have felt and conducted yourself over the past 6 months.',null,{show:()=>V.adhdSuspect(),tone:'info'}],
+  ...asrsItems.slice(0,6).map((q,i)=>['a'+i,'radio','ASRS '+(i+1)+'. '+q,asrsOpts,{show:()=>V.adhdSuspect()}]),
+  ['asrsBNote','note','Some more questions about attention and focus (ASRS Part B), over the past 6 months. These help your psychotherapist understand the pattern.',null,{show:()=>V.asrsB(),tone:'info'}],
+  ...asrsItems.slice(6).map((q,i)=>['a'+(i+6),'radio','ASRS '+(i+7)+'. '+q,asrsOpts,{show:()=>V.asrsB()}]),
+  ['pastRx','textarea','Past antidepressants or other mental-health treatment, and what helped (optional)'],
+  ['audit1','select','How often do you have a drink containing alcohol?',audit1],
+  ['audit2','select','How many standard drinks containing alcohol do you have on a typical day? (One standard drink is 12 oz of beer, 5 oz of wine, or 1.5 oz of liquor.)',audit2,{show:V.drinks}],
+  ['audit3','select','How often do you have 4 or more drinks on one occasion?',audit3,{show:V.drinks}],
+  ['drug','select','Any non-prescribed drug use or medication misuse in the past year?',['No','Yes','Prefer not to answer']],
+  ['pregnancy','checks','Optional, for your medical clinician: pregnancy history',groups.pregnancy]]},
+{section:'Difficult Experiences',intro:'Some experiences can continue to affect us long after they happen. The following questions help us understand whether past experiences may be affecting how you feel today.\n\nYou can skip any question or choose to discuss it during your session instead.\n\nIf you start to feel overwhelmed, pause, breathe slowly, and notice your feet on the floor. The Quick exit button clears this page right away. Answers on this page are never saved on this device.',quickExit:true,items:[
+  ['tGate','select','1. Have you ever experienced or witnessed something frightening, overwhelming, or traumatic, such as an accident, violence, abuse, or the sudden, violent, or accidental loss of someone close to you?',['No','Yes','Prefer to discuss in session']],
+  ['aceQ','select','2. Were there difficult experiences during your childhood or teenage years that you feel may still affect you today?',['No','Yes','Prefer to discuss in session']],
+  ['pcNote','note','About the experience or experiences in question 1:',null,{show:V.trauma,tone:'info'}],
+  ...pcItems.map((q,i)=>['pc'+i,'radio','In the past month, have you '+q,yesNo,{show:V.trauma}]),
+  ['pclNote','note','Below is a list of problems that people sometimes have in response to a very stressful experience. Please read each problem carefully and choose how much you have been bothered by that problem in the past month.',null,{show:()=>V.pcPos(),tone:'info'}],
+  ...pclItems.map((q,i)=>['pl'+i,'radio',(i+1)+'. '+q,pclOpts,{show:()=>V.pcPos()}])]},
+{section:'Safety at home',quickExit:true,items:[
+  ['unsafe','select','Do you feel unsafe at home right now?',['No','Yes','Prefer to discuss privately']],
+  ['hitsGate','select','The next five questions are about a partner. “Partner” means a current or former partner.',['Answer now','Prefer to discuss privately','No partner (current or former) in the past 12 months']],
+  ...hits.map((q,i)=>['h'+i,'radio',hitsStem+q,hitsOpts,{show:V.hitsOn}]),
+]},
+{section:'Before you finish',intro:'',items:[
+  ['notes','textarea','What is the most difficult change you’ve noticed in your mood, sleep, memory, energy, body, or relationships during this stage of your life? Is there anything about this change you especially want your psychotherapist to understand? (optional)']]},
+{section:'Review and report',intro:'Your scores and any flags are below. A scale with a skipped item will not get a total. Safety and medical flags are checked no matter how much you completed.',items:[]}
+];
+const allItems=fields.flatMap(s=>s.items.map(it=>({it,section:s.section})));
+
+
+/* ---------- Helpers ---------- */
+const state={};let step=0;
+const el=id=>document.getElementById(id);
+const escapeHtml=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function answered(v){return v!==undefined&&v!==null&&v!==''}
+function daysSinceLMP(){if(!answered(state.last))return null;const d=new Date(state.last+'T00:00:00'),t=new Date(state.date?state.date+'T00:00:00':Date.now());const n=Math.floor((t-d)/864e5);return Number.isFinite(n)&&n>=0&&n<3650?n:null}
+function validOvxAge(){const a=Number(state.ovxAge);if(!answered(state.ovxAge)||!Number.isInteger(a)||a<1||a>110)return false;return !(validAge()&&a>Number(state.age))}
+function contraList(){return named('contraNow').concat(state.injection==='Yes'?['contraceptive injection in the past 12 months']:state.injection==='Not sure'?['contraceptive injection, timing not sure']:[])}
+function maskReasons(){return [has('hormoneTx','Hysterectomy (uterus removed), ovaries kept')?'hysterectomy with ovaries kept':'',has('hormoneTx','GnRH medication (for example, Lupron)')?'GnRH medication':'',state.mht==='Yes'?'current menopausal hormone therapy':'',...contraList().map(x=>x.charAt(0).toLowerCase()+x.slice(1)),state.stage==='Periods hidden by contraception, surgery, or medication'?'periods reported as hidden by contraception, surgery, or medication':''].filter(Boolean)}
+function likelyStage(){const age=validAge()?Number(state.age):null;const lmp=daysSinceLMP();
+const why=t=>t;
+if(has('hormoneTx','Both ovaries removed'))return {key:'surgical',post:true,text:'Surgical menopause (both ovaries removed): postmenopausal from the date of surgery'};
+if(periodsMasked()){if(age!==null&&age>=55)return {key:'masked',post:true,text:'Likely postmenopause, based on age '+age+' (periods can’t be used: '+maskReasons().join('; ')+')'};
+return {key:'masked',text:'Can’t be determined from periods ('+maskReasons().join('; ')+')'+(age!==null&&age>=45?'; symptoms, age, and if needed blood tests guide staging':'')}}
+if(state.periodStop==='Yes, before age 40')return {key:'post',post:true,text:'Postmenopause: periods stopped for good before age 40 (premature menopause; primary ovarian insufficiency needs medical confirmation)'};
+if(state.periodStop==='Yes, between ages 40 and 44')return {key:'post',post:true,text:'Postmenopause: periods stopped for good between ages 40 and 44 (early menopause)'};
+if(state.stage==='No period for 12+ months'||(lmp!==null&&lmp>=365))return {key:'post',post:true,text:'Postmenopause: 12+ months without a period'+(state.stage!=='No period for 12+ months'?' (from last-period date, '+lmp+' days ago)':'')};
+if(lmp!==null&&lmp>=60&&!['Regular cycles'].includes(state.stage))return {key:'late',text:'Late menopause transition (perimenopause): last period '+lmp+' days ago (60 days to 12 months)'};
+const m={'Regular cycles':['repro','Regular cycles: reproductive stage, or very early in the transition'],'Cycles vary by 7+ days':['early','Early menopause transition (perimenopause): cycle length varies by 7+ days'],'No period for 60–89 days':['late','Late menopause transition (perimenopause): 60+ days without a period'],'No period for 3–11 months':['late','Late menopause transition (perimenopause): 3–11 months without a period']}[state.stage];
+if(m)return {key:m[0],text:m[1]+(age!==null&&age>=55?'. Unusual at age '+age+'; confirm':'')};
+return {key:'unknown',text:'Not determined (menstrual pattern not answered or unsure)'+(age!==null&&age>=55?'; at age '+age+' most women are postmenopausal':'')}}
+const stageDefs='How stage is decided (STRAW+10): perimenopause = early transition (cycle length varies by 7+ days) or late transition (60+ days without a period). Menopause = the final period, confirmed after 12 months without one. Postmenopause = everything after that. Periods stopping before 40 = premature menopause or POI; at 40–44 = early menopause. Hormone therapy, contraception, hysterectomy, or GnRH medication can hide periods; then age and symptoms guide staging.';
+function stageConflict(){if(periodsMasked()||has('hormoneTx','Both ovaries removed'))return null;const lmp=daysSinceLMP();const c=[];
+const stopped=state.periodStop==='Yes, before age 40'||state.periodStop==='Yes, between ages 40 and 44';
+if(stopped&&['Regular cycles','Cycles vary by 7+ days','No period for 60–89 days','No period for 3–11 months'].includes(state.stage))c.push('menstrual pattern “'+state.stage.toLowerCase()+'”');
+if(stopped&&lmp!==null&&lmp<365)c.push('last period '+lmp+' days ago');
+if(!stopped&&state.stage==='No period for 12+ months'&&lmp!==null&&lmp<365)c.push('last period '+lmp+' days ago');
+return c.length?{stopped,c}:null}
+function periodsMasked(){return maskReasons().length>0}
+function validAge(){const a=Number(state.age);return answered(state.age)&&Number.isInteger(a)&&a>=18&&a<=110}
+const ss={get(){try{return sessionStorage.getItem(STORE)}catch(e){return null}},set(v){try{sessionStorage.setItem(STORE,v);return true}catch(e){return false}},clear(){try{sessionStorage.removeItem(STORE)}catch(e){}}};
+/*HOSTED*/const inArtifact=typeof window.claude==='object'&&window.claude!==null&&typeof window.claude.use==='function';
+let downloadsApi=null;/*END*/
+const isShown=it=>!(it[4]&&it[4].show)||it[4].show();
+
+function makeField(f){const [id,type,label,opts,o]=f;
+if(type==='note')return '<div class="q noteq" id="q_'+id+'"><div class="'+(o&&o.tone==='info'?'panel':'warning '+(o&&o.tone==='urgent'?'urgent':''))+'">'+escapeHtml(label)+'</div></div>';
+const grouped=type==='radio'||type==='checks';
+let x='<div class="q'+(o&&o.show?' cond':'')+'" id="q_'+id+'">'+(grouped?'<strong id="l_'+id+'">'+escapeHtml(label)+'</strong>':type==='check'?'':'<label for="f_'+id+'">'+escapeHtml(label)+'</label>');
+if(type==='radio')x+='<div class="choices" role="radiogroup" aria-labelledby="l_'+id+'">'+opts.map((v,i)=>'<label><input type="radio" name="'+id+'" value="'+i+'">'+escapeHtml(v)+'</label>').join('')+'</div>';
+else if(type==='checks')x+='<div class="checks" role="group" aria-labelledby="l_'+id+'">'+opts.map(v=>'<label><input type="checkbox" name="'+id+'" value="'+escapeHtml(v)+'">'+escapeHtml(v)+'</label>').join('')+'</div>';
+else if(type==='select')x+='<select id="f_'+id+'"><option value="">Choose / skip</option>'+opts.map(v=>'<option>'+escapeHtml(v)+'</option>').join('')+'</select>';
+else if(type==='textarea')x+='<textarea id="f_'+id+'"></textarea>';
+else if(type==='check')x+='<label class="checkline"><input id="f_'+id+'" type="checkbox"'+(o&&o.hint?' aria-describedby="h_'+id+'"':'')+'> '+escapeHtml(label)+'</label>'+(o&&o.hint?'<p class="hint" id="h_'+id+'">'+escapeHtml(o.hint)+'</p>':'');
+else x+='<input id="f_'+id+'" type="'+type+'"'+(id==='age'?' min="18" max="110" step="1" inputmode="numeric"':'')+'>';
+return x+'</div>'}
+
+function render(){
+el('steps').innerHTML=fields.map((s,i)=>'<section class="step" id="step'+i+'">'+(s.quickExit?'<button type="button" class="quickexit" id="quickExit'+i+'">Quick exit</button>':'')+'<h2>'+escapeHtml(s.section)+'</h2>'+(s.intro?s.intro.split('\n\n').map(t=>'<p class="instr">'+escapeHtml(t)+'</p>').join(''):'')+s.items.map(makeField).join('')+'</section>').join('');
+el('f_date').value=new Date().toLocaleDateString('en-CA');
+el('steps').addEventListener('input',changed);el('steps').addEventListener('change',changed);
+el('prev').onclick=()=>move(-1);el('next').onclick=()=>move(1);
+el('pdf').onclick=downloadPDF;el('print').onclick=()=>{makeReport();window.print()};
+el('copy').onclick=copyReport;el('clear').onclick=clearAsk;
+document.querySelectorAll('.quickexit').forEach(b=>b.onclick=quickExit);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&fields[step]&&fields[step].quickExit)quickExit()});
+el('reviewNote').textContent=CONFIG.reviewNote;
+/*HOSTED*/if(inArtifact)el('print').hidden=true;/*END*/
+window.addEventListener('beforeprint',()=>{makeReport();el('report').style.display='block'});
+window.addEventListener('afterprint',()=>{if(step!==fields.length-1)el('report').style.display='none'});
+show()}
+
+function readRaw(){for(const {it:[id,type]} of allItems){if(type==='note')continue;
+if(type==='radio'){const a=document.querySelector('input[name="'+id+'"]:checked');state[id]=a?a.value:''}
+else if(type==='checks')state[id]=[...document.querySelectorAll('input[name="'+id+'"]:checked')].map(x=>x.value);
+else{const e=el('f_'+id);state[id]=e.type==='checkbox'?e.checked:e.value}}}
+function clearItem(id,type){
+if(type==='radio')document.querySelectorAll('input[name="'+id+'"]').forEach(x=>x.checked=false);
+else if(type==='checks')document.querySelectorAll('input[name="'+id+'"]').forEach(x=>x.checked=false);
+else if(type!=='note'){const e=el('f_'+id);if(e.type==='checkbox')e.checked=false;else e.value=''}
+state[id]=type==='checks'?[]:type==='check'?false:''}
+// Read answers, then hide and clear anything whose condition no longer holds (so stale answers never count)
+function read(){readRaw();for(let pass=0;pass<3;pass++){let changedAny=false;for(const {it} of allItems){const [id,type]=it;const show=isShown(it);const q=el('q_'+id);if(q&&q.hidden===show){q.hidden=!show}if(!show&&type!=='note'){const had=type==='checks'?state[id]&&state[id].length:type==='check'?state[id]:answered(state[id]);if(had){clearItem(id,type);changedAny=true}}}if(!changedAny)break}}
+
+function changed(e){const t=e.target;
+const excl={'Hysterectomy (uterus removed), ovaries kept':'Both ovaries removed','Both ovaries removed':'Hysterectomy (uterus removed), ovaries kept','ADHD (diagnosed)':'Attention problems since childhood, never diagnosed','Attention problems since childhood, never diagnosed':'ADHD (diagnosed)'};
+if(t.name==='history'&&t.checked&&excl[t.value])document.querySelectorAll('input[name="history"]').forEach(x=>{if(x.value===excl[t.value])x.checked=false});
+if(t.name==='hormoneTx'&&t.checked&&excl[t.value])document.querySelectorAll('input[name="hormoneTx"]').forEach(x=>{if(x.value===excl[t.value])x.checked=false});
+if(t.type==='checkbox'&&t.name&&groups[t.name]&&t.checked){document.querySelectorAll('input[name="'+t.name+'"]').forEach(x=>{if(t.value==='None'?x.value!=='None':x.value==='None')x.checked=false})}
+read();
+if(state.recover){const keep={};for(const k in state)if(!privateIds.includes(k))keep[k]=state[k];el('saveMsg').textContent=ss.set(JSON.stringify(keep))?'Progress saved on this device. It clears when you close this tab.':'This browser does not allow keeping answers.'}
+else{ss.clear();if(/kept|restored/.test(el('saveMsg').textContent))el('saveMsg').textContent=''}
+safetyLive();if(step===fields.length-1)makeReport()}
+
+function restore(){try{const a=JSON.parse(ss.get()||'null');if(!a||!a.recover)return;
+for(const {it:[id,type]} of allItems){const v=a[id];if(v===undefined||type==='note')continue;
+if(type==='radio'){const r=document.querySelector('input[name="'+id+'"][value="'+v+'"]');if(r)r.checked=true}
+else if(type==='checks')document.querySelectorAll('input[name="'+id+'"]').forEach(x=>x.checked=Array.isArray(v)&&v.includes(x.value));
+else if(el('f_'+id)){const e=el('f_'+id);if(e.type==='checkbox')e.checked=!!v;else e.value=v}}
+read();el('saveMsg').textContent='Your earlier answers were restored.'}catch(e){}}
+
+const selected=id=>Array.isArray(state[id])?state[id]:[];
+const has=(id,s)=>selected(id).includes(s);
+const named=id=>selected(id).filter(x=>x!=='None');
+
+/* ---------- Scoring ---------- */
+function score(prefix,n){const a=Array.from({length:n},(_,i)=>state[prefix+i]);return a.every(answered)?a.reduce((s,x)=>s+Number(x),0):null}
+function countAnswered(prefix,n){return Array.from({length:n},(_,i)=>state[prefix+i]).filter(answered).length}
+const sev=n=>n===null?'Incomplete':n<5?'Minimal':n<10?'Mild':n<15?'Moderate':n<20?'Moderately severe':'Severe';
+const gsev=n=>n===null?'Incomplete':n<5?'Minimal':n<10?'Mild':n<15?'Moderate':'Severe';
+function mrsScore(sc){const v=sc.items.map(i=>state['m'+i]);if(!v.every(answered))return {score:null,band:'Incomplete',n:v.filter(answered).length};const s=v.reduce((a,x)=>a+Number(x),0);return {score:s,band:sc.bands.find(b=>s<=b[0])[1]}}
+function auditC(){if(!answered(state.audit1))return null;if(state.audit1==='Never')return 0;const x=audit1.indexOf(state.audit1),y=audit2.indexOf(state.audit2),z=audit3.indexOf(state.audit3);return x<0||y<0||z<0?null:x+y+z}
+function hitsScore(){if(!V.hitsOn())return null;const v=hits.map((_,i)=>state['h'+i]);/*5 items, 5–25*/return v.every(answered)?v.reduce((a,x)=>a+Number(x)+1,0):null}
+function cssrsLevel(final=true){if(!V.p8pos())return null;const y=id=>isYes(id);const any=cssrs.some(([id])=>answered(state[id]));if(!any)return null;
+const yesItems=[['cs1',1],['cs2',2],['cs3',3],['cs4',4],['cs5',5],['cs6',6]].filter(([id])=>y(id)).map(x=>x[1]);
+let level='None';
+if(y('cs1')||y('cs2'))level='Low';
+if(y('cs3')||(y('cs6')&&state.cs6b==='1'))level='Moderate';
+const timingMissing=y('cs6')&&!answered(state.cs6b);
+if(y('cs4')||y('cs5')||(y('cs6')&&y('cs6b'))||(timingMissing&&final))level='High';
+const req=['cs1','cs2','cs6'].concat(y('cs2')?['cs3','cs4','cs5']:[]).concat(y('cs6')?['cs6b']:[]);
+const complete=req.every(id=>answered(state[id]));
+return {level,yesItems,timingMissing,timingPending:timingMissing&&!final,complete,recent6:y('cs6')?(y('cs6b')?'within past 3 months':state.cs6b==='1'?'more than 3 months ago':'timing not answered (treated as high risk until clarified)'):null}}
+
+/* ---------- Flags ---------- */
+function pcScore(){if(!V.trauma())return null;const v=[0,1,2,3,4].map(i=>state['pc'+i]);return v.every(answered)?v.filter(x=>x==='0').length:null}
+function pclScore(){if(!V.pcPos())return null;const v=Array.from({length:20},(_,i)=>state['pl'+i]);if(!v.every(answered))return null;const n=v.map(Number),sum=a=>a.reduce((t,i)=>t+n[i],0);return {total:sum([...Array(20).keys()]),B:sum([0,1,2,3,4]),C:sum([5,6]),D:sum([7,8,9,10,11,12,13]),E:sum([14,15,16,17,18,19])}}
+function asrsA(){const v=[0,1,2,3,4,5].map(i=>state['a'+i]);if(!v.every(answered))return null;const n=v.filter((x,i)=>Number(x)>=asrsShade[i]).length;return {n,pos:n>=4}}
+function asrsB(){if(!V.asrsB())return null;const inat=[6,7,8,9,10],hyp=[11,12,13,14,15,16,17];const ans=i=>answered(state['a'+i]);if(![...inat,...hyp].some(ans))return null;const c=a=>a.filter(i=>ans(i)&&Number(state['a'+i])>=asrsShade[i]).length;return {inat:c(inat),hyp:c(hyp),answered:[...inat,...hyp].filter(ans).length}}
+function flags(final=true){const F=[];const age=Number(state.age);const hasAge=validAge();
+const C=cssrsLevel(final);const p8=V.p8pos();
+if(C&&C.timingPending)F.push(['prompt','Please answer the next question: was this within the past three months?',false,'One more question']);
+if(C&&C.level==='High')F.push(['urgent','Your answers suggest you may be at high risk right now. Please don’t wait for your next appointment: call or text 988 now, or call 911 or go to the nearest emergency department if you might act on these thoughts.']);
+// Softer client notice only when: screener complete and none/low, item 9 = "several days", no self-harm, no prior attempt
+const lowOk=C&&C.complete&&(C.level==='None'||C.level==='Low')&&!isYes('nssi')&&Number(state.p8)===1&&!has('history','Prior suicide attempt')&&!has('history','Self-harm without wanting to die');
+const ai=CONFIG.redForActiveIdeation,active=isYes('cs2');
+const softItem9=lowOk&&!(active&&ai);
+const midItem9=lowOk&&active&&ai==='moderate';
+if(p8&&midItem9){F.push(['prompt','You said you have had thoughts of killing yourself. Please talk with your clinician soon. '+CONFIG.moderateContact+' If these thoughts get stronger or you might act on them, call or text 988, or call 911.']);
+F.push(['clinical','PHQ-9 item 9 positive with active suicidal thoughts (C-SSRS item 2) but no method, intent, or behavior: low risk by Columbia triage; contact per Tier 2.'])}
+if(p8&&softItem9){F.push(['prompt','Thank you for answering these questions. Please share this report with your clinician. If these thoughts get stronger or you might act on them, call or text 988, or call 911.',false,'Please share this with your clinician']);
+F.push(['clinical','PHQ-9 item 9 positive ('+freq[Number(state.p8)].toLowerCase()+'). Any positive answer predicts later attempts in health-system data; follow up even though the screener level is '+C.level.toLowerCase()+'.'])}
+else if(p8&&!midItem9)F.push(['urgent','Thoughts of death or self-harm were reported (PHQ-9 item 9: '+freq[Number(state.p8)].toLowerCase()+'). This needs a prompt, direct assessment by a qualified professional. If you might act on these thoughts or cannot stay safe, call 911 or go to an emergency department; in the U.S., call or text 988.']);
+if(C&&C.level==='Moderate')F.push(['prompt','Your answers about suicidal thoughts need a conversation with your clinician soon. '+CONFIG.moderateContact+' If things get worse or you might act on these thoughts, call or text 988, or call 911.']);
+if(C&&C.level==='None'&&!C.complete)F.push(['clinical','C-SSRS follow-up incomplete: no items endorsed so far, but required items were skipped. Not a negative screen; ask directly.']);
+else if(C)F.push(['clinical',C.level==='None'?'C-SSRS screener: no suicidal ideation or behavior endorsed.':'C-SSRS screener: '+C.level.toLowerCase()+' risk (yes to item'+(C.yesItems.length>1?'s ':' ')+C.yesItems.join(', ')+')'+(C.recent6?'; suicidal behavior '+C.recent6:'')+(C.complete?'':'; some required items skipped')+'. A screener result is not a risk assessment; a full clinical evaluation is needed.']);
+if(V.p8pos()&&isYes('nssi'))F.push(['clinical','Self-harm without suicidal intent reported in the past month (for example, cutting or burning). Assess method, frequency, medical risk, and function.']);
+if(C&&C.level==='None'&&C.complete&&!isYes('nssi'))F.push(['clinical','PHQ-9 item 9 positive but C-SSRS negative: clarify passive death wishes versus self-harm versus misreading the item.']);
+if(!C&&p8&&!state.csPrefer)F.push(['clinical','PHQ-9 item 9 positive; C-SSRS follow-up questions not answered.']);
+if(V.p8pos()&&state.csPrefer)F.push(['clinical','Client prefers to discuss suicide-risk questions directly with the clinician. Assess at next contact.']);
+const cardioSx=named('cardio').filter(x=>x!=='New or unexplained palpitations');
+if(cardioSx.length)F.push(['urgent','You reported: '+cardioSx.join('; ').toLowerCase()+'. Get urgent medical assessment. If it is happening now, severe, or persistent, call 911.'+(has('hormoneTx','Tamoxifen')?' Tamoxifen increases blood-clot risk: new breathlessness, chest pain, or one-sided leg swelling needs same-day medical assessment.':'')]);
+if(has('cardio','New or unexplained palpitations'))F.push(['medical','New or unexplained palpitations: medical evaluation is recommended.']);
+const stg0=likelyStage();const isPost=stg0.key==='post';const postish=!!stg0.post;const SC=stageConflict();
+if(has('bleed','Bleeding after 12 months without a period'))F.push(['medical','Bleeding after 12 months without a period always needs prompt medical evaluation, to rule out endometrial cancer and other causes. Contact a medical clinician soon; do not wait for a routine visit.'+(state.mht==='Yes'?' If you use hormone therapy, tell your prescriber: scheduled withdrawal bleeds can be expected, but unscheduled bleeding still needs evaluation.':'')+' For the clinician: 1–14% of women with postmenopausal bleeding have endometrial cancer (ACOG 2018); evaluation is by transvaginal ultrasound or endometrial sampling.',false,null,'top',2,'Postmenopausal bleeding']);
+const otherBleed=named('bleed').filter(x=>x!=='Bleeding after 12 months without a period');
+const tam=has('hormoneTx','Tamoxifen');
+const pmbTicked=has('bleed','Bleeding after 12 months without a period');
+if(otherBleed.length&&isPost&&!pmbTicked)F.push(['medical','Postmenopausal bleeding ('+otherBleed.join('; ').toLowerCase()+'): the answers place the client in postmenopause ('+stg0.text.replace(/^Postmenopause: /,'').replace(/^Likely postmenopause, /,'').replace(/ \([^()]*\)$/,'')+'), so any bleeding is postmenopausal bleeding. Prompt gynecologic evaluation, ideally within about 2 weeks: transvaginal ultrasound or endometrial sampling. 1–14% of women with postmenopausal bleeding have endometrial cancer (ACOG 2018). Vaginal dryness can cause bleeding after sex, but does not remove the need for evaluation.'+(tam?' Tamoxifen raises endometrial cancer risk further.':''),false,null,'top',2,'Postmenopausal bleeding']);
+else if(otherBleed.length&&(tam||(hasAge&&age>=55)))F.push(['medical','Bleeding ('+otherBleed.join('; ').toLowerCase()+') '+(tam?'while taking tamoxifen':'at age '+age)+': prompt gynecologic evaluation (pelvic ultrasound, often with endometrial sampling).'+(tam?' Tamoxifen raises endometrial cancer risk, so any abnormal bleeding should be investigated.':''),false,null,'top',2,'Abnormal bleeding'+(tam?' on tamoxifen':' at '+age)]);
+else if(otherBleed.length)F.push(['medical','Abnormal bleeding ('+otherBleed.join('; ').toLowerCase()+') needs medical evaluation.']);
+// Age + period status
+const masked=periodsMasked();
+const lmp=daysSinceLMP();
+const noPeriod60=!masked&&(['No period for 60–89 days','No period for 3–11 months','No period for 12+ months'].includes(state.stage)||(lmp!==null&&lmp>=60));
+const noPeriod3m=!masked&&(['No period for 3–11 months','No period for 12+ months'].includes(state.stage)||(lmp!==null&&lmp>=90));
+if(lmp===0)F.push(['clinical','Last-period date is the same as the assessment date. Confirm it; on iPhone, tapping the date box fills in today’s date.']);
+if(SC)F.push(['medical','Check answers on menopause stage: '+(SC.stopped?'periods reported to have stopped for good before 45':'“no period for 12+ months” reported')+', but also '+SC.c.join(' and ')+'. If there has been any bleeding or spotting after 12 months without a period, that is postmenopausal bleeding and needs prompt gynecologic evaluation. Confirm the date of the last bleeding with the client.',false,null,'top',2,'Stage answers conflict (possible postmenopausal bleeding)']);
+if(lmp!==null&&state.stage==='Regular cycles'&&lmp>=60)F.push(['clinical','Last period date ('+lmp+' days ago) doesn’t match “regular cycles”; clarify the menstrual pattern.']);
+const ovx=has('hormoneTx','Both ovaries removed');
+const ovxGiven=validOvxAge();const ovxAge=ovxGiven?Number(state.ovxAge):(hasAge?age:null);
+// When age at surgery is entered, it decides on its own; otherwise fall back to current age or the period question
+if(ovx&&(ovxGiven?ovxAge<40:((ovxAge!==null&&ovxAge<40)||state.periodStop==='Yes, before age 40')))F.push(['medical','Both ovaries removed before age 40: this surgical menopause meets the definition of primary ovarian insufficiency. Medical follow-up on hormone therapy, bone, and heart health is recommended.']);
+else if(ovx&&(ovxGiven?ovxAge<45:((ovxAge!==null&&ovxAge<45)||state.periodStop==='Yes, between ages 40 and 44')))F.push(['medical','Both ovaries removed before age 45 (early surgical menopause): medical follow-up on hormone therapy, bone, and heart health is recommended.']);
+else if(state.periodStop==='Yes, before age 40'||(hasAge&&age<40&&noPeriod60))F.push(['medical',(state.periodStop==='Yes, before age 40'?'Periods stopped before age 40':'Missed periods (60+ days) under age 40')+': please see a medical clinician. This does not mean you have primary ovarian insufficiency. '+(hasAge&&age>=45?'Bone and heart health follow-up matters after early loss of ovarian function.':'Pregnancy and hormonal contraception need to be ruled out first, and diagnosis needs blood tests.')+' For the clinician: ESHRE/ASRM 2024 define POI as 4+ months of absent or irregular periods with FSH above 25 IU/L.']);
+else if(state.periodStop==='Yes, between ages 40 and 44'||(hasAge&&age>=40&&age<45&&noPeriod3m))F.push(['medical',(state.periodStop==='Yes, between ages 40 and 44'?'Periods stopped between ages 40 and 44':'3+ months without a period at ages 40–44')+(hasAge&&age>=45&&state.periodStop==='Yes, between ages 40 and 44'?' (early menopause, now age '+age+'): early menopause has long-term bone and heart health effects. Ask the medical clinician about bone density and heart-risk checks, and whether hormone therapy until about age 51 was considered.':': medical evaluation is recommended. Early menopause has long-term bone and heart health effects, and pregnancy and other causes should be ruled out.')]);
+const somS=mrsScore(mrsScales[2]).score;const vasoSx=Number(state.m0)>=2||(somS!==null&&somS>=5);
+if(masked&&!ovx&&hasAge&&age<45&&vasoSx)F.push(['medical','Periods can’t be used to judge menopause stage here ('+maskReasons().join('; ')+'). Hormonal contraception can also lower FSH. Because menopause-type symptoms were reported, a medical clinician can assess with symptoms and, if needed, blood tests.']);
+if(state.injection==='Not sure')F.push(['clinical','Contraceptive injection timing not sure: confirm the date of the last shot. Period-based flags were turned off until it is known.']);
+const hcNow=named('contraNow').length>0||state.injection==='Yes';
+if(state.mht==='Yes'&&hcNow)F.push(['medical','Hormone therapy and hormonal contraception both reported ('+contraList().join(', ').toLowerCase()+'). If the pill, patch, or ring is a combined method, this may mean taking estrogen twice. The prescriber should confirm the full regimen.'+(named('bleed').length?' Bleeding while on hormones also needs evaluation.':''),false,null,named('bleed').length?'top':null]);
+if(state.mht==='Yes')F.push(['clinical','Currently using menopausal hormone therapy: low hot-flush or MRS scores may reflect treatment working, not absence of symptoms.']);
+const hyst=has('hormoneTx','Hysterectomy (uterus removed), ovaries kept'),ovxx=has('hormoneTx','Both ovaries removed');
+const pregAns=state.pregPossible==='Yes'||state.pregPossible==='Unsure';
+const noPreg=postish||(hasAge&&age>=55);
+if(pregAns&&!hyst&&!ovxx&&!noPreg)F.push(['medical','Pregnancy may be possible: consider a pregnancy test and medical guidance.']);
+else if(pregAns&&!hyst&&!ovxx)F.push(['clinical','Check answers: pregnancy marked possible or unsure, but '+(postish?'the answers indicate postmenopause':'age is '+age)+'. Pregnancy is very unlikely; clarify what the client meant.']);
+const hc=[];if(hyst&&named('bleed').filter(x=>x!=='Bleeding after 12 months without a period').length)hc.push('period-related bleeding');if(hyst&&['Regular cycles','Cycles vary by 7+ days'].includes(state.stage))hc.push('ongoing menstrual cycles');if((hyst||ovxx)&&pregAns)hc.push('possible pregnancy');
+if(hc.length)F.push(['clinical','Check answers: '+(hyst?'hysterectomy':'removal of both ovaries')+' reported, but also '+hc.join(' and ')+'. '+(hyst?'Periods and pregnancy aren’t possible after a hysterectomy':'Pregnancy isn’t possible after both ovaries are removed')+'; confirm the surgery. Any vaginal bleeding still needs medical evaluation.']);
+const txOther=named('hormoneTx').filter(x=>x!=='Tamoxifen');
+if(txOther.length)F.push(['medical','Treatments or history that affect hormones: '+txOther.join('; ')+'. These change how menopause is staged and which treatments are suitable; coordinate with the medical clinician.']);
+const cancerTx=['Tamoxifen','Aromatase inhibitor (for example, letrozole or anastrozole)','Chemotherapy','Pelvic radiation','Breast, endometrial, or other hormone-sensitive cancer'].filter(x=>has('hormoneTx',x));
+const estro=has('contraNow','Pill, patch, or ring');const progOnly=named('contraNow').filter(x=>x!=='Pill, patch, or ring').concat(state.injection==='Yes'?['contraceptive injection']:[]);
+if(cancerTx.length&&(estro||progOnly.length))F.push(['medical','Hormonal contraception reported alongside '+cancerTx.join(', ').toLowerCase()+'. '+(estro?'A pill, patch, or ring may contain estrogen, which is generally avoided after a hormone-sensitive cancer. ':'')+(progOnly.length?'Progestin-only methods ('+progOnly.join(', ').toLowerCase()+'): guidelines differ after breast cancer. ':'')+'The prescriber should confirm what is used and whether it is appropriate.']);
+const bSx=has('other','Unexplained weight loss with fever or drenching night sweats'),sob=has('cardio','Shortness of breath');
+const concerns=[named('bleed').length?'abnormal bleeding':'',sob?'shortness of breath':'',bSx?'weight loss with fever or night sweats':'',state.cog==='Yes'?'worsening memory or thinking':''].filter(Boolean);
+if(cancerTx.length&&(concerns.length>=2||bSx||sob))F.push(['medical',(concerns.length>=2?'Several new physical symptoms together ('+concerns.join(', ')+')':'New symptom ('+concerns.join(', ')+')')+' in someone with cancer treatment or history ('+cancerTx.join(', ').toLowerCase()+'). The client should contact their medical or oncology team within days, sooner if worsening'+(sob?'; breathlessness needs same-day assessment':'')+'. This can signal recurrence, infection, or a blood clot.',false,null,'summary']);
+if(tam&&!has('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer'))F.push(['clinical','Tamoxifen ticked without a cancer history: ask whether it is for cancer treatment or for risk reduction. That changes which contraception and hormone advice fits.']);
+const methods=contraList();
+if(methods.length>=2)F.push(['clinical','Check answers: '+methods.length+' hormonal contraceptive methods reported ('+methods.join(', ').toLowerCase()+'). Confirm which are actually in use.']);
+if(hasAge&&age>=55&&methods.length)F.push(['clinical','Check answers: hormonal contraception reported at age '+age+'. Contraception is usually needed only until about 50–55; confirm.']);
+if(hasAge&&age>=55&&['Regular cycles','Cycles vary by 7+ days'].includes(state.stage))F.push(['clinical','Check answers: ongoing cycles reported at age '+age+' (median age at menopause is 51). Confirm; bleeding at this age may need evaluation.']);
+if(tam)F.push(['medical','Client takes tamoxifen; it affects menopause staging and treatment choices. For the prescriber: when choosing an antidepressant or hot-flash treatment, avoid strong CYP2D6 inhibitors (paroxetine, fluoxetine, bupropion), which lower endoxifen levels; duloxetine is a moderate inhibitor. Options with little interaction include venlafaxine, escitalopram, and citalopram.']);
+const thySx=has('other','Heat intolerance, tremor, or unexplained weight loss');
+const arousal=[];if(Number(state.g3)>=2)arousal.push('trouble relaxing');if(Number(state.g4)>=2)arousal.push('restlessness');if(Number(state.g5)>=2)arousal.push('irritability');if(Number(state.p7)>=2)arousal.push('slowed or restless movement');if(Number(state.p4)>=2)arousal.push('appetite change');if(Number(state.m1)>=2)arousal.push('heart discomfort');
+if(thySx&&arousal.length>=2)F.push(['medical','Heat intolerance, tremor, or unexplained weight loss together with '+arousal.join(', ')+'. An overactive thyroid can look like anxiety or perimenopause. Ask the medical clinician about thyroid testing before formulating this as an anxiety disorder.'+(state.adhdMed==='Yes'?' ADHD stimulant medication can cause the same pattern; review it with the prescriber too.':''),false,null,'top']);
+else if(thySx)F.push(['medical','Heat intolerance, tremor, or unexplained weight loss: ask your medical clinician whether thyroid testing is needed.']);
+const otherSx=named('other').filter(x=>x!=='Heat intolerance, tremor, or unexplained weight loss'&&!(cancerTx.length&&x==='Unexplained weight loss with fever or drenching night sweats'));
+if(otherSx.length)F.push(['medical','Other symptoms reported ('+otherSx.join('; ').toLowerCase()+'): discuss with a medical clinician.']);
+if(state.cog==='Yes')F.push(['medical','Memory or thinking changes that are worsening, impairing, or noticed by others: medical assessment is recommended; do not assume menopause is the cause.']);
+const stg=likelyStage();const peri=stg.key==='early'||stg.key==='late';const vuln=['Prior depression','PMDD','Postpartum depression'].filter(x=>has('history',x));
+if(state.onset==='Before cycle changes'&&(peri||isPost))F.push(['clinical','Mood or thinking changes began before cycle changes: hormonal transition is less likely to be the main driver. Consider other contributors (life stress, recurrent depression, sleep, medical causes) alongside menopause symptoms.']);
+if(peri&&vuln.length)F.push(['clinical','Perimenopause with a history of '+vuln.join(', ').toLowerCase()+': the group at highest risk for perimenopausal depression. Monitor mood through the transition, even if current scores are low.']);
+const adhd=has('history','ADHD (diagnosed)'),attnWorse=state.cog==='Yes'||Number(state.p6)>=2||Number(state.m6)>=2;
+if(adhd)F.push(['clinical','Diagnosed ADHD'+(attnWorse?' with worsening concentration or memory: perimenopause commonly worsens ADHD symptoms. Check with the prescriber whether ADHD treatment still fits.':': concentration items (PHQ-9 item 7, MRS exhaustion) may reflect ADHD as well as mood or menopause.')]);
+if(has('history','Attention problems since childhood, never diagnosed'))F.push(['clinical','Attention problems since childhood, never diagnosed: consider a full ADHD evaluation. A midlife screening score alone can’t separate ADHD from menopause-related brain fog.']);
+if(state.adhdMed==='Yes')F.push(['clinical','Takes ADHD medication: stimulants can cause poor appetite, restlessness, a racing heart, insomnia, and weight loss. Read the physical PHQ-9 items'+(has('other','Heat intolerance, tremor, or unexplained weight loss')?' and the thyroid-pattern flag':'')+' with this in mind.']);
+const AS=V.adhdSuspect()?asrsA():null;
+if(AS){const dx=has('history','ADHD (diagnosed)');const B=asrsB();const bTxt=B?' Part B shaded answers: inattention '+B.inat+' of 5, hyperactivity and impulsivity '+B.hyp+' of 7 (no total score; use as probes).':'';
+if(AS.pos&&dx)F.push(['clinical','ASRS Part A: '+AS.n+' of 6 in the shaded range, so current ADHD symptoms are high. With perimenopause, review whether ADHD treatment still fits.'+bTxt]);
+else if(AS.pos)F.push(['clinical','ASRS Part A positive: '+AS.n+' of 6 in the shaded range, highly consistent with adult ADHD; further evaluation is warranted. Childhood onset: '+(has('history','Attention problems since childhood, never diagnosed')?'reported':state.adhdChild==='Yes'?'reported':'not sure')+'. Perimenopause and poor sleep can raise these scores, so the evaluation should confirm childhood onset.'+bTxt]);
+else F.push(['clinical','ASRS Part A below the screening threshold ('+AS.n+' of 6 in the shaded range).'+(dx?' Current ADHD symptoms look controlled.':' Attention complaints may reflect sleep, mood, or menopause rather than ADHD.')])}
+else if(V.adhdSuspect()&&[0,1,2,3,4,5].some(i=>answered(state['a'+i])))F.push(['clinical','ASRS Part A incomplete: not scored.']);
+if(state.tGate==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss trauma history in session.']);
+const PC=pcScore(),PCL=pclScore();
+if(V.trauma()&&PC===null)F.push(['clinical','Trauma exposure reported; PC-PTSD-5 symptom questions incomplete. Ask directly.']);
+if(PC!==null&&PC>=3)F.push(['clinical','PC-PTSD-5 positive: '+PC+' of 5 (cut-off 3, used here for women; the VA general cut-off is 4). Probable PTSD; a full trauma assessment is warranted.']);
+else if(PC!==null)F.push(['clinical','Trauma exposure reported; PC-PTSD-5 '+PC+' of 5, below the screening cut-off. Ask about the event and its current impact.']);
+if(PCL)F.push(['clinical','PCL-5 total '+PCL.total+' of 80 ('+(PCL.total>=31?'at or above':'below')+' the provisional PTSD cut-off of 31–33). Clusters: intrusions '+PCL.B+'/20, avoidance '+PCL.C+'/8, negative thoughts and mood '+PCL.D+'/28, arousal and reactivity '+PCL.E+'/24. Items 15, 19, and 20 (irritability, concentration, sleep) overlap with menopause symptoms. Repeat to track change.']);
+else if(V.pcPos()&&Array.from({length:20},(_,i)=>state['pl'+i]).some(answered))F.push(['clinical','PCL-5 incomplete: not scored.']);
+if(V.pcPos()&&Number(state.pl15)>=2)F.push(['clinical','PCL-5 item 16 (taking risks or doing things that could cause harm) rated '+pclOpts[Number(state.pl15)].toLowerCase()+': ask directly about risky or self-harming behavior.']);
+{const st=likelyStage();if(((PC!==null&&PC>=3)||(PCL&&PCL.total>=31))&&(st.key==='early'||st.key==='late'))F.push(['clinical','Trauma symptoms during perimenopause: lower estradiol has been linked to weaker fear extinction, and trauma history to more hot flashes, insomnia, and depression in the transition. Treat both in parallel; neither explains the other away.'])}
+if(state.aceQ==='Yes')F.push(['clinical','Childhood experiences that still affect the client: explore childhood adversity in session (the full ACE questionnaire can be used there).']);
+else if(state.aceQ==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss childhood experiences in session.']);
+if(has('history','Bipolar disorder / mania / hypomania'))F.push(['clinical','History of bipolar disorder or mania/hypomania: assess before any antidepressant is considered.']);
+if(has('history','Prior suicide attempt'))F.push(['clinical','History of suicide attempt: higher-risk group; follow up regardless of current PHQ-9 total or screener level.']);
+if(has('history','Prior suicide attempt')&&state.cs6==='1')F.push(['clinical','Mismatch: “prior suicide attempt” ticked in history, but C-SSRS item 6 (ever done anything to end your life) answered No. Clarify directly.']);
+if(has('history','Self-harm without wanting to die'))F.push(['clinical','History of self-harm without suicidal intent: ask about recent episodes and current urges.']);
+if(state.drug==='Yes')F.push(['clinical','Non-prescribed drug use or medication misuse: discuss privately.']);
+{const U=mrsScore(mrsScales[3]).score;if(U!==null&&U>=2&&Number(state.m9)>=2)F.push(['medical','Urogenital symptoms (MRS urogenital '+U+'/12; vaginal dryness '+mrsOpts[Number(state.m9)].toLowerCase()+') fit genitourinary syndrome of menopause (GSM). For the medical clinician: low-dose vaginal estrogen is first-line drug treatment (AUA/SUFU/AUGS 2025), with moisturizers and lubricants'+(named('bleed').length?'; start only after the reported bleeding has been evaluated':'')+'. Ask about pain with sex and urinary symptoms.',false,null,null,3,'Genitourinary syndrome of menopause'])}
+{const pv=Array.from({length:9},(_,i)=>state['p'+i]);if(pv.every(answered)&&new Set(pv).size===1&&Number(pv[0])>0)F.push(['clinical','All nine PHQ-9 items answered the same ('+freq[Number(pv[0])].toLowerCase()+'). This may be accurate or a same-answer pattern; go through the items in session before relying on the total'+(Number(pv[0])===1?', which sits just below the usual cut-off of 10':'')+'.',false,null,null,4,'PHQ-9 same answer on every item'])}
+{const gs=score('g',7),mi=[['irritability',Number(state.m4)],['anxiety',Number(state.m5)]].filter(x=>x[1]>=2);if(gs!==null&&gs<=4&&mi.length)F.push(['clinical','GAD-7 '+gs+' (minimal) but MRS '+mi.map(x=>x[0]+' '+mrsOpts[x[1]].toLowerCase()).join(' and ')+'. Ask directly about anxiety and irritability; menopause-linked irritability may not be captured by the GAD-7.',false,null,null,4,'GAD-7 vs MRS anxiety mismatch'])}
+{const ps=score('p',9),psy=mrsScore(mrsScales[1]);if(ps!==null&&ps<10&&psy.score!==null&&psy.score>=7)F.push(['clinical','MRS psychological '+psy.score+'/16 (severe) but PHQ-9 '+ps+' (below 10). Mood symptoms may be under-reported on the PHQ-9 or concentrated in irritability, anxiety, and exhaustion; clarify in session.',false,null,null,4,'MRS psychological vs PHQ-9 mismatch'])}
+// Eating concerns (gated)
+{const SC=scoffScore(),comp=named('edComp'),vom=comp.includes('Made yourself vomit')||(V.ed()&&isYes('sc0')),lax=comp.includes('Used laxatives, water pills (diuretics), or diet pills');
+const fast=comp.includes('Fasted or ate very little for a day or more'),wl=V.ed()&&isYes('sc2'),bingeW=state.edBinge==='About once a week or more',binge=bingeW||state.edBinge==='Less than once a week',dist=isYes('edDistress');
+const pos=(SC!==null&&SC>=2)||(bingeW&&dist)||vom||lax;
+if(state.edGate==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss eating, weight, or body-shape concerns in session.',false,null,null,4,'Eating concerns: discuss in session']);
+if(SC!==null&&SC>=2)F.push(['clinical','SCOFF '+SC+' of 5 (positive at 2 or more): an eating disorder is likely. Confirm with a clinical interview against DSM-5 criteria; the EDE-Q can measure severity. The SCOFF was built for anorexia and bulimia and has not been validated specifically in women over 50, so read it as a prompt for interview.',false,null,null,3,'SCOFF positive ('+SC+'/5)']);
+else if(SC!==null)F.push(['clinical','SCOFF '+SC+' of 5, below the cut-off of 2. The SCOFF can miss binge eating, the most common pattern in midlife; see the binge-eating answers.',false,null,null,4,'SCOFF below cut-off']);
+else if(V.ed())F.push(['clinical','Eating concerns reported; SCOFF incomplete. Ask directly.',false,null,null,4,'SCOFF incomplete']);
+if(binge)F.push(['clinical','Loss-of-control overeating reported ('+state.edBinge.toLowerCase()+(state.edDistress?', '+(dist?'with':'without')+' distress':'')+'). '+(bingeW&&dist?'This fits the frequency and distress criteria for binge eating disorder if confirmed; ':'')+'Ask about eating in secret, eating when not hungry, and guilt afterward; a dedicated screener such as the BEDS-7 can be given in session.',false,null,null,bingeW&&dist?3:4,'Binge eating'+(bingeW?' (weekly or more)':'')]);
+if(vom||lax){const cardio=has('cardio','New or unexplained palpitations')||named('cardio').length>0;F.push(['medical','Purging reported ('+[vom?'self-induced vomiting':'',lax?'laxatives, diuretics, or diet pills':''].filter(Boolean).join('; ')+'). For the medical clinician: check electrolytes, especially potassium'+(cardio?'; low potassium is a cause to rule out for the reported heart symptoms':'')+'. Specialist eating-disorder referral is warranted for purging or medical instability.',false,null,cardio?'top':null,cardio?2:3,'Purging'+(cardio?' with heart symptoms':'')])}
+const earlyLoss=['Yes, before age 40','Yes, between ages 40 and 44'].includes(state.periodStop)||(has('hormoneTx','Both ovaries removed')&&validOvxAge()&&Number(state.ovxAge)<45);
+if((fast||wl)&&V.ed())F.push(['medical','Restriction or rapid weight loss reported ('+[fast?'fasting or eating very little':'',wl?'lost more than 14 pounds in 3 months':''].filter(Boolean).join('; ')+'). Medical review is recommended'+(earlyLoss?'; restriction adds to the bone-loss risk of early menopause, so bone density matters here':'; low intake also affects bone health after menopause')+'.',false,null,null,3,'Restriction or rapid weight loss']);
+if(pos)F.push(['medical','Possible eating disorder: tell the physician before restrictive diets, weight-loss medication, or surgery are recommended, because these can reactivate disordered eating.',false,null,null,3,'Weight-loss treatment caution']);
+if(pos&&V.p8pos())F.push(['clinical','Positive eating screen alongside thoughts of death (PHQ-9 item 9). Eating disorders, especially binge-purge patterns, raise suicide-attempt risk; include this in the risk assessment and safety plan.',false,null,null,2,'Eating screen + suicide-risk follow-up']);
+if(state.edPast==='Yes')F.push(['clinical','Past eating disorder diagnosis or treatment: ask about relapse; menopause and body changes can reactivate symptoms.',false,null,null,4,'Past eating disorder']);
+if(V.ed()&&!pos&&!binge&&!fast&&!wl)F.push(['clinical','Eating or body-shape worries reported, but the screens are negative. Body dissatisfaction is the strongest modifiable risk factor for disordered eating in women; treat body image as a therapy target in its own right.',false,null,null,4,'Body image concerns, screens negative']);
+if(state.edGate==='No'&&Number(state.p4)>=1&&['Moderately','A great deal'].includes(state.bodyImpact))F.push(['clinical','Appetite change (PHQ-9 item 5) and body changes affecting self-image '+state.bodyImpact.toLowerCase()+', but the eating-concerns question was answered No. Consider asking about eating directly; clarify whether item 5 meant poor appetite or overeating.',false,null,null,4,'Appetite + body-image: ask about eating'])}
+const A=auditC();
+if(A!==null&&A>=3){const freqOnly=audit2.indexOf(state.audit2)===0&&audit3.indexOf(state.audit3)===0;
+F.push(['clinical',(V.p8pos()?'Higher priority (alcohol use alongside thoughts of death or self-harm): ':'')+'AUDIT-C '+A+'/12, at or above the usual cut-off for women (3). '+(freqOnly?'The score comes from drinking frequency alone, so check actual intake before treating it as positive. ':'')+'AUDIT-C detects risky drinking better than it diagnoses alcohol use disorder.']);}
+// Home safety (private)
+const H=hitsScore();
+if(state.unsafe==='Prefer to discuss privately'||state.hitsGate==='Prefer to discuss privately')F.push(['clinical','Client prefers to discuss home and relationship safety privately. Ask in session, somewhere the client can speak freely.',true]);
+if((state.unsafe==='Prefer to discuss privately'||state.hitsGate==='Prefer to discuss privately'||(V.hitsOn()&&Number(state.h4)>0))&&has('bleed','Bleeding after sex'))F.push(['clinical','Bleeding after sex together with '+(V.hitsOn()&&Number(state.h4)>0?'reported forced sexual activity':'a preference to discuss relationship safety privately')+': ask privately about pain during sex, pressure or coercion, and whether sex is wanted and consensual.',true,null,null,2,'Bleeding after sex + relationship safety']);
+if(state.unsafe==='Yes')F.push(['urgent','You said you feel unsafe at home. If you are in danger, call 911. For confidential support, call the National Domestic Violence Hotline at 1-800-799-7233 or text START to 88788.',true]);
+if(H!==null&&H>=7)F.push(['clinical','Relationship safety screen (E-HITS) positive: '+H+'/25 (cut-off 7 or more). Discuss privately; safety planning may be needed. Check whether any reporting rules apply.',true]);
+const hurt=V.hitsOn()&&Number(state.h0)>0,sexv=V.hitsOn()&&Number(state.h4)>0;
+if(hurt||sexv)F.push(['clinical',[hurt?'physical harm by a partner ('+hitsOpts[Number(state.h0)].toLowerCase()+')':'',sexv?'forced sexual activity by a partner ('+hitsOpts[Number(state.h4)].toLowerCase()+')':''].filter(Boolean).join(' and ').replace(/^./,c=>c.toUpperCase())+' reported, regardless of E-HITS total. Discuss privately and check whether any reporting rules apply.',true]);
+// Tiers: 1 today, 2 within 1 business day, 3 within 7 days, 4 next session
+const T2=[/^PHQ-9 item 9 positive/,/^C-SSRS screener: (low|moderate)/,/^Client prefers to discuss suicide/,/^History of suicide attempt/,/^Self-harm without suicidal intent/,/^Relationship safety screen \(E-HITS\) positive/,/^(Physical harm|Forced sexual)/,/^PCL-5 item 16/,/^Higher priority \(alcohol/];
+const SH=[[/^Your answers suggest you may be at high risk/,'C-SSRS high risk'],[/^Thoughts of death or self-harm were reported/,'PHQ-9 item 9 positive, screener not completed'],[/^You said you have had thoughts of killing yourself/,'Active suicidal thoughts (C-SSRS item 2)'],[/^Your answers about suicidal thoughts/,'C-SSRS moderate risk'],[/^Thank you for answering these questions/,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^You reported: /,'Chest pain or breathlessness symptoms'],[/^You said you feel unsafe at home/,'Feels unsafe at home'],[/^Please answer the next question/,'C-SSRS timing question unanswered'],[/^Client prefers to discuss suicide/,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^Client prefers to discuss home/,'Home and relationship safety: discuss privately'],[/^Childhood experiences that still/,'Childhood adversity'],[/^PHQ-9 item 9 positive/,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^C-SSRS screener: (low|none)/i,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^C-SSRS screener/,'C-SSRS screener result'],[/^Check answers: pregnancy/,'Pregnancy answer doesn’t fit stage or age']];
+F.forEach(f=>{if(!f[5])f[5]=f[0]==='urgent'?1:f[0]==='prompt'?2:f[0]==='medical'?(f[4]?2:3):(T2.some(r=>r.test(f[1]))?2:4);
+if(!f[6]){const h=SH.find(x=>x[0].test(f[1]));let d=f[1].split(/: |\. /);let t=(d[0]==='Check answers'&&d[1]?'Check answers: '+d[1]:d[0]).replace(/\.$/,'');f[6]=h?h[1]:(t.length>80?t.slice(0,77).replace(/\s+\S*$/,'')+'…':t)}});
+const rank=f=>({urgent:0,prompt:1,medical:f[4]==='summary'?1.5:f[4]==='top'?2:3,clinical:4}[f[0]]);
+return F.map((f,i)=>[f,i]).sort((a,b)=>a[0][5]-b[0][5]||rank(a[0])-rank(b[0])||a[1]-b[1]).map(x=>x[0])}
+const tierName={1:'Today',2:'Within 1 business day',3:'Within 7 days',4:'Next session'};
+const reportFlags=()=>flags();
+
+const safetyStep=fields.findIndex(s=>s.section==='Safety at home'),phqStep=fields.findIndex(s=>s.section.startsWith('Mood'));
+function safetyLive(){const live=flags(step!==phqStep).filter(x=>(x[0]==='urgent'||x[0]==='prompt')&&(!x[2]||step===safetyStep));
+el('safetyLive').innerHTML=live.map(x=>'<div class="warning '+(x[0]==='urgent'?'urgent':'')+'"><strong>'+(x[3]||(x[0]==='urgent'?'Safety notice':'Please reach out soon'))+'</strong><p>'+escapeHtml(x[1])+'</p></div>').join('')}
+
+/* ---------- Report ---------- */
+const clean=v=>answered(v)&&!/^\s*(n\/?a|-+|\.+)\s*$/i.test(String(v))?String(v):'';
+function answerText(it){const [id,type,,opts]=it;const v=state[id];
+if(id==='last'&&answered(v)){const n=daysSinceLMP();return v+(n!==null?' ('+n+' day'+(n===1?'':'s')+' before the assessment)':'')}
+if(type==='text'||type==='textarea')return clean(v)||'Not provided';
+if(type==='radio')return answered(v)?opts[Number(v)]:'Not answered';
+if(type==='checks')return Array.isArray(v)&&v.length?v.join('; '):'Not answered';
+if(type==='check')return v?'Yes':'No';
+return answered(v)?String(v):'Not answered'}
+const flagKind=k=>k==='urgent'?'Immediate safety guidance':k==='prompt'?'Contact clinician soon':k==='medical'?'For medical clinician':'For clinical follow-up';
+const flagLabel=(k,t)=>(t?tierName[t]+' · ':'')+flagKind(k);
+const privateIds=['edGate','sc0','sc1','sc2','sc3','sc4','edBinge','edDistress','edComp','edPast','unsafe','hitsGate','h0','h1','h2','h3','h4','tGate','aceQ',...[0,1,2,3,4].map(i=>'pc'+i),...Array.from({length:20},(_,i)=>'pl'+i)];// never saved to browser storage
+function reportItems(section){return section.items.filter(it=>it[1]!=='note'&&it[0]!=='recover'&&isShown(it))}
+function summary(){read();const ps=score('p',9),gs=score('g',7);
+return {ps,gs,pa:countAnswered('p',9),ga:countAnswered('g',7),mrs:mrsScales.map(sc=>({...sc,...mrsScore(sc)})),aud:auditC(),hits:hitsScore(),cssrs:cssrsLevel(),flags:reportFlags()}}
+function scoreCells(S){const t=S.mrs[0];return [
+  ['PHQ-9',S.ps===null?'Incomplete':S.ps+' / 27',S.ps===null?S.pa+' of 9 answered':sev(S.ps)],
+  ['GAD-7',S.gs===null?'Incomplete':S.gs+' / 21',S.gs===null?S.ga+' of 7 answered':gsev(S.gs)],
+  ['MRS',t.score===null?'Incomplete':t.score+' / 44',t.score===null?t.n+' of 11 answered':t.band],
+  ['AUDIT-C',S.aud===null?'Incomplete':S.aud+' / 12',S.aud===null?'not all items answered':S.aud>=3?'At or above the usual cut-off for women':'Below the usual cut-off for women']]}
+
+/* ---------- Severity bars ---------- */
+// Severity colors: green=minimal/low, yellow=mild, orange=moderate, red=high, dark red=most severe (PHQ-9 top level, MRS "very severe").
+// Validated for colorblind and normal-vision separation; always shown with a number and a written label.
+const SEV_PDF={g:'#5fb366',y:'#f0d04a',o:'#e57524',r:'#b52f28',rr:'#6e1719',na:'#cfd6d3'};
+function sevScales(S){const L=[];
+const add=(name,score,min,max,bands,colors,note)=>L.push({name,score,min,max,bands,colors,note});
+add('PHQ-9 depression',S.ps,0,27,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'],[15,19,'Moderately severe'],[20,27,'Severe']],['g','y','o','r','rr'],S.ps===null?S.pa+' of 9 answered':null);
+add('GAD-7 anxiety',S.gs,0,21,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'],[15,21,'Severe']],['g','y','o','r'],S.gs===null?S.ga+' of 7 answered':null);
+S.mrs.forEach(m=>{let lo=0;const bands=m.bands.map(([hi,lab])=>{const b=[lo,hi===Infinity?m.max:hi,lab];lo=(hi===Infinity?m.max:hi)+1;return b});add(m.key==='total'?'MRS menopause symptoms':'MRS '+m.name.toLowerCase(),m.score,0,m.max,bands,['g','y','o','r'],m.score===null?m.n+' of '+m.items.length+' answered':null)});
+{const A=V.adhdSuspect()?asrsA():null;if(A)add('ASRS Part A, adult ADHD (screen)',A.n,0,6,[[0,3,'Below screening threshold'],[4,6,'Consistent with adult ADHD; evaluate']],['g','o'],null)}
+{const PC=pcScore();if(PC!==null)add('PC-PTSD-5 trauma screen',PC,0,5,[[0,2,'Below screening cut-off'],[3,5,'Positive screen; assess']],['g','o'],null);const PCL=pclScore();if(PCL)add('PCL-5 PTSD symptoms',PCL.total,0,80,[[0,30,'Below provisional cut-off'],[31,80,'At or above provisional cut-off']],['g','o'],null)}
+{const SC=scoffScore();if(SC!==null)add('SCOFF eating disorder (screen)',SC,0,5,[[0,1,'Below screening cut-off'],[2,5,'Positive screen; assess']],['g','o'],null)}
+add('AUDIT-C alcohol (screen)',S.aud,0,12,[[0,2,'Below screening cut-off'],[3,12,'At or above screening cut-off']],['g','o'],S.aud===null?'not all items answered':null);
+if(S.hits!==null)add('E-HITS relationship safety (screen)',S.hits,5,25,[[5,6,(Number(state.h0)>0||Number(state.h4)>0)?'Below total cut-off; item endorsed':'Below screening cut-off'],[7,25,'Positive screen']],['g','o'],null);
+return L.map(x=>({...x,units:x.max-x.min+1,band:x.score===null?null:x.bands.find(b=>x.score>=b[0]&&x.score<=b[1])}))}
+function barHTML(x,compact){
+const pct=v=>((v-x.min)/x.units*100).toFixed(2)+'%';
+const label=compact?(x.score===null?'Not answered':x.band[2]):(x.score===null?'Incomplete':x.score+' / '+x.max+' · '+x.band[2]);
+return '<div class="sev'+(compact?' sevc':'')+(x.score===null?' sevinc':'')+'"><div class="sevhead"><b>'+escapeHtml(x.name)+'</b><span>'+escapeHtml(label)+(x.note?' <small>('+escapeHtml(x.note)+')</small>':'')+'</span></div>'+
+'<div class="sevbar" role="img" aria-label="'+escapeHtml(x.name+': '+label)+'">'+x.bands.map((b,i)=>'<div class="band c'+(x.score===null?'na':x.colors[i])+'" style="flex:'+(b[1]-b[0]+1)+'" title="'+escapeHtml(b[2]+': '+b[0]+(b[1]>b[0]?'–'+b[1]:''))+'"></div>').join('')+
+(x.score===null?'':'<div class="mark" style="left:'+(((x.score-x.min+0.5)/x.units)*100).toFixed(2)+'%"></div>')+'</div>'+
+(compact?'':'<div class="sevticks">'+x.bands.map(b=>'<span style="left:'+pct(b[0])+'">'+b[0]+'</span>').join('')+'<span class="end" style="left:100%">'+x.max+'</span></div>')+'</div>'}
+function itemScales(){return mrsShort.map((n,i)=>{const v=state['m'+i];const sc=answered(v)?Number(v):null;return {name:(i+1)+'. '+n,score:sc,min:0,max:4,units:5,bands:mrsOpts.map((o,k)=>[k,k,o]),colors:['g','y','o','r','rr'],band:sc===null?null:[sc,sc,mrsOpts[sc]],note:null}})}
+const LEGEND=[['g','Minimal or low'],['y','Mild'],['o','Moderate'],['r','High'],['rr','Highest level*'],['na','Not answered']];
+function legendHTML(){return '<div class="sevlegend" aria-label="Color key">'+LEGEND.map(([c,t])=>'<span><i class="c'+c+'"></i>'+t+'</span>').join('')+'</div><p class="hint">*Used where an instrument defines a top level (PHQ-9 severe, MRS item “very severe”). Green means a low symptom score, not that everything is medically fine. Every color comes with a number and a written label.</p>'}
+function sevHTML(S){return legendHTML()+'<div class="sevwrap">'+sevScales(S).map(x=>barHTML(x)).join('')+'</div>'}
+function itemsHTML(){return '<h3>Menopause symptoms, item by item</h3><p class="hint">Each MRS item is rated None, Mild, Moderate, Severe, or Very severe.</p><div class="sevwrap items">'+itemScales().map(x=>barHTML(x,true)).join('')+'</div>'}
+
+function phqParts(){const g=a=>a.every(i=>answered(state['p'+i]))?a.reduce((t,i)=>t+Number(state['p'+i]),0):null;return {phys:g([2,3,4,6,7]),mood:g([0,1,5,8])}}
+function mrsDetail(S){const t=S.mrs[0];if(t.score===null)return null;const parts=[];
+const lo=t.bands.map(b=>b[0]);let start=0;const starts=t.bands.map(([hi])=>{const st=start;start=(hi===Infinity?t.max:hi)+1;return st});
+if(starts.includes(t.score)&&t.score>0)parts.push('Total '+t.score+' is at the start of the '+t.band.toLowerCase()+' band.');
+const rated=mrsShort.map((n,i)=>[n,Number(state['m'+i])]).filter(x=>x[1]>=2).sort((a,b)=>b[1]-a[1]);
+if(rated.length){const byLvl={};rated.forEach(([n,v])=>(byLvl[v]??=[]).push(n.toLowerCase()));parts.push('Highest-rated: '+Object.keys(byLvl).sort((a,b)=>b-a).map(v=>byLvl[v].join(', ')+' ('+mrsOpts[v].toLowerCase()+')').join('; ')+'.')}
+if(answered(state.m0)&&Number(state.m0)<2)parts.push('Hot flushes: '+mrsOpts[Number(state.m0)].toLowerCase()+'.');
+return parts.join(' ')}
+function glance(S){const L=[['Likely stage',likelyStage().text+(stageConflict()?' (answers conflict; see flag)':'')]];const F=S.flags;
+[1,2,3,4].forEach(t=>{const it=F.filter(f=>f[5]===t);if(!it.length)return;const lab=[...new Set(it.map(f=>(f[2]?'[private] ':'')+f[6]))];
+L.push([tierName[t],it.length+(it.length>1?' items':' item')+': '+lab.slice(0,t>=4?4:6).join('; ')+(lab.length>(t>=4?4:6)?'; and '+(lab.length-(t>=4?4:6))+' more':'')])});
+const pp=phqParts(),f=[];
+if(S.ps!==null)f.push('PHQ-9 '+S.ps+' ('+sev(S.ps).toLowerCase()+(pp.phys!==null?'; mood and self-worth items '+pp.mood+', physical and concentration items '+pp.phys:'')+')');
+if(S.gs!==null)f.push('GAD-7 '+S.gs+' ('+gsev(S.gs).toLowerCase()+')');
+{const PCL=pclScore(),PC=pcScore();if(PCL)f.push('PCL-5 '+PCL.total+'/80');else if(PC!==null)f.push('PC-PTSD-5 '+PC+'/5')}
+const psy=S.mrs[1];if(psy.score!==null)f.push('MRS psychological '+psy.score+' ('+psy.band.toLowerCase()+')');
+if(f.length)L.push(['Therapy focus',f.join(' · ')]);return L}
+
+function makeReport(){const S=summary();
+let out='<h2>Your MINDSPRING summary</h2><div class="panel">Screening scores are not diagnoses or proof of a hormonal cause. Sleep, fatigue, and concentration items can overlap with menopause symptoms, so mood scores should be read with a clinical interview.</div>';
+const G=glance(S);if(G.length)out+='<div class="panel glance"><b>For the clinician</b>'+G.map(g=>'<div><span>'+escapeHtml(g[0])+':</span> '+escapeHtml(g[1])+'</div>').join('')+'<p class="hint">'+escapeHtml(stageDefs)+'</p></div>';
+out+='<div class="scoregrid">'+scoreCells(S).map(c=>'<div class="score">'+c[0]+'<br><b>'+c[1]+'</b><br>'+escapeHtml(c[2])+'</div>').join('')+'</div>';
+out+='<h3>Where each score falls</h3><p class="hint">Each bar is drawn to its scale’s own published ranges, so band widths differ between questionnaires. The marker shows this score.</p>'+sevHTML(S);
+const fl=x=>'<div class="warning '+(x[0]==='urgent'?'urgent':'')+'"><b>'+flagLabel(x[0],x[5])+'</b><p>'+escapeHtml(x[1])+'</p></div>';
+const pubF=S.flags.filter(f=>!f[2]),privF=S.flags.filter(f=>f[2]);
+if(S.flags.length)out+='<h3>Safety and follow-up</h3>'+pubF.map(fl).join('')+(privF.length?'<h4>Discuss privately at next session</h4>'+privF.map(fl).join(''):'');
+
+else out+='<p>No specific safety flags were found in the answers given. Missing answers do not rule out risk.</p>';
+if((S.ps!==null&&S.ps>=10)||(S.gs!==null&&S.gs>=10))out+='<p><b>Clinical conversation recommended:</b> mood or anxiety symptoms are in the moderate range or higher.</p>';
+const fn=[['PHQ-9',state.phqImpact,'phqImpact'],['GAD-7',state.gadImpact,'gadImpact']].filter(x=>answered(x[1]));
+if(fn.length)out+='<p><b>Effect on daily life:</b> '+fn.map(x=>x[0]+': '+difficulty[Number(x[1])].toLowerCase()).join('; ')+'</p>';
+const pp=phqParts();if(pp.phys!==null)out+='<p><b>PHQ-9 detail:</b> mood and self-worth items (1, 2, 6, 9) '+pp.mood+' of 12; physical and concentration items (3, 4, 5, 7, 8) '+pp.phys+' of 15. These physical items overlap with menopause symptoms.'+(Number(state.p7)>0?' Ask about item 8: slowed or restless?':'')+'</p>';
+const md=mrsDetail(S);if(md)out+='<p><b>MRS detail:</b> '+escapeHtml(md)+'</p>';
+out+=itemsHTML();
+out+='<p class="hint">MRS severity bands from Heinemann et al. (2004); other studies use different cut-offs. AUDIT-C uses the usual cut-off for women (3).'+(S.hits!==null?' E-HITS is positive at 7 or more.':'')+'</p>';
+const chip=id=>{const a=answered(state[id]);return '<span class="chip'+(a?'':' chipna')+'">'+escapeHtml(a?ynOpts[Number(state[id])]:'Not answered')+'</span>'};
+out+='<h3>Patterns reported</h3><p class="hint">What the client noticed. Not scored, so shown without severity colors.</p><div class="chips">'+domains.map(([id,name])=>'<div><span>'+name+'</span>'+chip(id)+'</div>').join('')+'<div><span>Protective factor: support</span>'+chip('support')+'</div></div>';
+
+out+='<h3>In the client’s words</h3><p>'+escapeHtml(clean(state.notes)||'Not provided')+'</p>';
+out+='<h3>All recorded answers</h3>';
+for(const s of fields){const items=reportItems(s);if(!items.length)continue;out+='<h4>'+escapeHtml(s.section)+'</h4>';for(const it of items)out+='<p><b>'+escapeHtml(it[2])+'</b> — '+escapeHtml(answerText(it))+'</p>'}
+out+='<p class="hint">Report made on this device '+new Date().toLocaleString()+'. '+escapeHtml(CONFIG.reviewNote)+'</p>';
+el('report').innerHTML=out;return out}
+
+function show(){document.querySelectorAll('.step').forEach((e,i)=>e.classList.toggle('active',i===step));
+const last=step===fields.length-1;
+el('prev').disabled=step===0;el('next').textContent='Continue';el('next').hidden=last;
+el('stepLabel').textContent='Step '+(step+1)+' of '+fields.length;
+el('progress').style.width=((step+1)/fields.length*100)+'%';
+el('report').style.display=last?'block':'none';el('toolbar').hidden=!last;el('thanks').hidden=!last;
+if(last)makeReport();safetyLive();window.scrollTo(0,0)}
+function move(n){step=Math.max(0,Math.min(fields.length-1,step+n));show()}
+
+function quickExit(){try{sessionStorage.clear()}catch(e){}document.title='Weather';document.body.innerHTML='<p style="padding:24px;font:16px system-ui">Loading…</p>';try{location.replace(CONFIG.quickExitUrl)}catch(e){}}
+
+let clearArmed=false,clearTimer=0;
+function clearAsk(){const b=el('clear');if(!clearArmed){clearArmed=true;b.textContent='Tap again to erase all answers';b.className='danger';clearTimer=setTimeout(()=>{clearArmed=false;b.textContent='Clear answers';b.className='alt'},4000);return}
+clearTimeout(clearTimer);ss.clear();location.reload()}
+const status=m=>{el('saveMsg').textContent=m};
+
+function reportText(){const S=summary();const L=[];
+L.push('MINDSPRING Perimenopause, Menopause & Mood Check-In ('+CONFIG.version+')','Client: '+(state.name||'Not provided')+'   Date: '+(state.date||'')+'   Age: '+(state.age||'Not provided'),'');
+scoreCells(S).forEach(c=>L.push(c[0]+': '+c[1]+' ('+c[2]+')'));
+S.mrs.slice(1).forEach(m=>L.push('  MRS '+m.name+': '+(m.score===null?'Incomplete':m.score+'/'+m.max+', '+m.band)));
+L.push('','FLAGS');L.push(...(S.flags.length?S.flags.map(f=>'- ['+flagLabel(f[0],f[5])+'] '+f[1]):['- None found in the answers given; missing answers do not rule out risk.']));
+L.push('','In the client’s words: '+(clean(state.notes)||'Not provided'));
+for(const s of fields){const items=reportItems(s);if(!items.length)continue;L.push('',s.section.toUpperCase());for(const it of items)L.push(it[2]+': '+answerText(it))}
+return L.join('\n')}
+
+async function copyReport(){const t=reportText();try{await navigator.clipboard.writeText(t);status('Report copied. Paste it into your clinician’s secure portal or message.')}catch(e){
+let ta=el('copyBox');if(!ta){ta=document.createElement('textarea');ta.id='copyBox';ta.readOnly=true;ta.style.minHeight='200px';el('toolbar').after(ta)}ta.value=t;ta.focus();ta.select();status('Copying is blocked here. The report text is selected below; use your device’s Copy.')}}
+
+function fileName(){return 'MINDSPRING_report_'+(state.date||new Date().toLocaleDateString('en-CA'))+'.pdf'}
+
+async function downloadPDF(){makeReport();const bytes=buildPDF();const name=fileName();
+/*HOSTED*/if(inArtifact){if(!downloadsApi){status('Downloading is not available in this view. Use Copy report text instead.');return}
+try{await downloadsApi.save({filename:name,data:new Blob([bytes],{type:'application/pdf'})});status('PDF saved.')}catch(e){const c=e&&e.code;status(c==='declined'?'Download cancelled.':c==='rate_limited'?'A save prompt is already open. Finish it, then try again.':'Downloading is not available in this view. Use Copy report text instead.')}return}/*END*/
+const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));const a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);status('PDF created. On iPhone, tap the download icon, then Share to save it to Files.')}
+
+/* ---------- PDF builder (no libraries, works offline) ---------- */
+function buildPDF(){const S=summary();
+const norm=s=>String(s).replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/[–—]/g,'-').replace(/…/g,'...').replace(/·/g,'-').replace(/≥/g,'>=').replace(/≤/g,'<=').normalize('NFKD').replace(/[^\x20-\x7E]/g,'');
+const W=612,H=792,M=50,TW=W-2*M,TOP=H-M,BOT=64;
+const TEAL='0.157 0.490 0.451',RED='0.639 0.196 0.196',INK='0.141 0.267 0.243',MUTED='0.337 0.431 0.400';
+const cw=(ch,b)=>{const c=ch.charCodeAt(0);if(c===32)return 278;if("il.,:;'|!".includes(ch))return 250;if('mwMW'.includes(ch))return 860;if(c>=65&&c<=90)return b?722:680;if(c>=48&&c<=57)return 556;return b?585:540};
+const width=(s,size,b)=>[...s].reduce((t,ch)=>t+cw(ch,b),0)*size/1000;
+function wrap(text,size,b,max){const out=[];let cur='';for(const w of norm(text).split(/\s+/).filter(Boolean)){const t=cur?cur+' '+w:w;if(width(t,size,b)>max&&cur){out.push(cur);cur=w}else cur=t}out.push(cur);return out}
+const pages=[];let ops=[],y=TOP;
+const newPage=()=>{if(ops.length)pages.push(ops);ops=[];y=TOP};
+const need=h=>{if(y-h<BOT)newPage()};
+const esc=s=>s.replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+const txt=(s,x,yy,size,b,col)=>ops.push('BT '+(col||INK)+' rg /'+(b?'F2':'F1')+' '+size+' Tf '+x.toFixed(1)+' '+yy.toFixed(1)+' Td ('+esc(norm(s))+') Tj ET');
+const rule=(yy,col,w)=>ops.push((col||TEAL)+' RG '+(w||0.8)+' w '+M+' '+yy.toFixed(1)+' m '+(W-M)+' '+yy.toFixed(1)+' l S');
+const box=(x,yy,w,h,col)=>ops.push(col+' rg '+x.toFixed(1)+' '+yy.toFixed(1)+' '+w.toFixed(1)+' '+h.toFixed(1)+' re f');
+function para(text,{size=9.5,b=false,col,indent=0,lead=1.35,after=3}={}){for(const l of wrap(text,size,b,TW-indent)){need(size*lead);y-=size*lead;txt(l,M+indent,y,size,b,col)}y-=after}
+function kv(label,value,cols){const size=9;const c=cols||[0.52,0.44];const lw=wrap(label,size,true,TW*c[0]),vw=wrap(value,size,false,TW*c[1]);const n=Math.max(lw.length,vw.length);need(n*size*1.35+3);for(let i=0;i<n;i++){y-=size*1.35;if(lw[i])txt(lw[i],M,y,size,true);if(vw[i])txt(vw[i],M+TW*(1-c[1]),y,size,false,value==='Not answered'?MUTED:INK)}y-=3;ops.push('0.85 0.90 0.87 RG 0.4 w '+M+' '+(y+1).toFixed(1)+' m '+(W-M)+' '+(y+1).toFixed(1)+' l S')}
+function heading(t){need(40);y-=18;txt(norm(t).toUpperCase(),M,y,10.5,true,TEAL);y-=5;rule(y);y-=4}
+// Title
+y-=20;txt('MINDSPRING',M,y,20,true,TEAL);txt('Perimenopause, Menopause & Mood Check-In',M+150,y+1,12,false,INK);
+y-=16;txt('Prepared for review with '+CONFIG.clinician,M,y,9,false,MUTED);
+y-=10;rule(y,TEAL,1.5);y-=18;
+txt('Client: '+(state.name||'Not provided'),M,y,10,true);txt('Date: '+(state.date||''),M+290,y,10,false);txt('Age: '+(state.age?(validAge()?state.age:state.age+' (not valid)'):'-'),M+410,y,10,false);y-=10;
+// Score tiles
+const tiles=scoreCells(S);const tw=(TW-24)/4,th=68;y-=th;tiles.forEach((t,i)=>{const x=M+i*(tw+8);box(x,y,tw,th,'0.918 0.957 0.937');txt(t[0],x+9,y+th-15,8.5,true,MUTED);txt(t[1],x+9,y+31,15,true,TEAL);const sub=wrap(t[2],7.5,false,tw-14);sub.slice(0,2).forEach((l,k)=>txt(l,x+9,y+18-k*9,7.5,false))});
+y-=10;para('Screening scores are not diagnoses or proof of a hormonal cause. Somatic items (sleep, fatigue, concentration) can overlap with menopause symptoms; interpret with a clinical interview. AUDIT-C uses the U.S. version (4+ drinks for women); a score of 3 or more is the usual positive cut-off for women.',{size:8,col:MUTED});
+const G=glance(S);if(G.length){heading('For the clinician');G.forEach(g=>kv(g[0],g[1],[0.25,0.72]));para(stageDefs,{size:7.5,col:MUTED})}
+heading('Safety and follow-up flags');
+const pf=f=>{const col=f[0]==='urgent'||f[0]==='prompt'?RED:INK;para(flagLabel(f[0],f[5]).toUpperCase(),{size:8.5,b:true,col,after:0});para(f[1],{size:9.5,col,after:6})};
+if(S.flags.length){S.flags.filter(f=>!f[2]).forEach(pf);const pv=S.flags.filter(f=>f[2]);if(pv.length){y-=4;para('DISCUSS PRIVATELY AT NEXT SESSION',{size:9,b:true,col:TEAL,after:2});pv.forEach(pf)}}
+else para('No specific flags found in the answers given. Missing answers do not rule out risk.');
+if((S.ps!==null&&S.ps>=10)||(S.gs!==null&&S.gs>=10))para('Clinical conversation recommended: mood or anxiety symptoms are in the moderate range or higher.',{b:true});
+const fn=[['PHQ-9',state.phqImpact],['GAD-7',state.gadImpact]].filter(x=>answered(x[1]));
+if(fn.length)para('Effect on daily life: '+fn.map(x=>x[0]+' - '+difficulty[Number(x[1])].toLowerCase()).join('; '));
+const hex=h=>[1,3,5].map(i=>(parseInt(h.slice(i,i+2),16)/255).toFixed(3)).join(' ');
+const legendPDF=()=>{need(30);let lx=M;y-=10;LEGEND.forEach(([c,t])=>{box(lx,y-1,9,9,hex(SEV_PDF[c]));txt(t,lx+12,y,7.5,false,MUTED);lx+=12+width(t,7.5,false)+14});y-=10;para('*Where an instrument defines a top level (PHQ-9 severe, MRS item very severe). Green means a low symptom score, not that everything is medically fine.',{size:7,col:MUTED})};
+const drawBar=(x,compact)=>{need(compact?20:42);
+y-=compact?10:12;txt(x.name,M,y,compact?8.5:9,!compact);const lab=compact?(x.score===null?'Not answered':x.band[2]):(x.score===null?'Incomplete'+(x.note?' ('+x.note+')':''):x.score+' / '+x.max+'  -  '+x.band[2]);txt(lab,compact?M+TW*0.78:M+200,y,compact?8.5:9,false,x.score===null?MUTED:INK);
+const bh=compact?7:10,bw=compact?TW*0.40:TW,bx0=compact?M+TW*0.36:M;const by=compact?y-1:y-17,gap=1.5,uw=(bw-gap*(x.bands.length-1))/x.units;let bx=bx0;
+x.bands.forEach((b,i)=>{const w=(b[1]-b[0]+1)*uw;box(bx,by,w,bh,hex(SEV_PDF[x.score===null?'na':x.colors[i]]));
+if(!compact)ops.push('BT '+MUTED+' rg /F1 6.5 Tf '+bx.toFixed(1)+' '+(by-8).toFixed(1)+' Td ('+b[0]+') Tj ET');bx+=w+gap});
+if(!compact)ops.push('BT '+MUTED+' rg /F1 6.5 Tf '+(bx0+bw-width(String(x.max),6.5,false)).toFixed(1)+' '+(by-8).toFixed(1)+' Td ('+x.max+') Tj ET');
+if(x.score!==null){const bi=x.bands.findIndex(b=>x.score>=b[0]&&x.score<=b[1]);const mx=bx0+(x.score-x.min+0.5)*uw+bi*gap;box(mx-2.5,by-3,5,bh+6,'1 1 1');box(mx-1.2,by-2,2.4,bh+4,INK)}
+y=compact?by-6:by-12};
+need(60+sevScales(S).length*42);heading('Where each score falls');legendPDF();
+for(const x of sevScales(S))drawBar(x);
+para('Each bar uses its questionnaire\'s own published ranges, so band widths differ; the dark marker is the client\'s score.',{size:7.5,col:MUTED});
+need(30+11*20);heading('Menopause symptoms, item by item');itemScales().forEach(x=>drawBar(x,true));y-=4;
+{const pp=phqParts();if(pp.phys!==null)para('PHQ-9 detail: mood and self-worth items (1, 2, 6, 9) '+pp.mood+' of 12; physical and concentration items (3, 4, 5, 7, 8) '+pp.phys+' of 15. These physical items overlap with menopause symptoms.'+(Number(state.p7)>0?' Ask about item 8: slowed or restless?':''),{size:9});
+const md=mrsDetail(S);if(md)para('MRS detail: '+md,{size:9});}
+heading('In the client’s words');para(clean(state.notes)||'Not provided',{size:10});
+heading('Menopause Rating Scale (MRS)');
+S.mrs.forEach(m=>kv(m.name+(m.key==='total'?'':' subscale'),m.score===null?'Incomplete':m.score+' / '+m.max+'  -  '+m.band));
+para('Bands: Heinemann et al., Health Qual Life Outcomes 2004;2:45. Other studies use different cut-offs.',{size:7.5,col:MUTED});
+para('Item-by-item ratings are shown as bars above.',{size:8,col:MUTED});
+heading('Patterns reported (not causal)');
+
+domains.forEach(([id,name])=>kv(name,answered(state[id])?ynOpts[Number(state[id])]:'Not answered'));
+kv('Protective factor: support',answered(state.support)?ynOpts[Number(state.support)]:'Not answered');
+
+for(const s of fields){if(s.section.startsWith('Menopause')||s.section==='Before you finish')continue;const items=reportItems(s);if(!items.length)continue;heading(s.section);
+for(const it of items){let v=answerText(it);if(/^[pg]\d$/.test(it[0])&&answered(state[it[0]]))v+=' ('+state[it[0]]+')';if(/^h\d$/.test(it[0])&&answered(state[it[0]]))v+=' ('+(Number(state[it[0]])+1)+')';kv(it[2],v)}}
+y-=8;para('Made on the client\'s device '+new Date().toLocaleString()+'. '+CONFIG.reviewNote+' In the U.S., call or text 988 for suicide crisis support; call 911 for immediate danger.',{size:8,col:MUTED});
+pages.push(ops);
+const total=pages.length;pages.forEach((p,i)=>{p.push('0.85 0.90 0.87 RG 0.5 w '+M+' 44 m '+(W-M)+' 44 l S');p.push('BT '+MUTED+' rg /F1 8 Tf '+M+' 32 Td (MINDSPRING Perimenopause, Menopause & Mood Check-In '+CONFIG.version+' - Confidential) Tj ET');p.push('BT '+MUTED+' rg /F1 8 Tf '+(W-M-60)+' 32 Td (Page '+(i+1)+' of '+total+') Tj ET')});
+const obj=[''];const add=s=>(obj.push(s),obj.length-1);
+const catalog=add(''),root=add('');
+const f1=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+const f2=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+const kids=[];for(const p of pages){const stream=p.join('\n');const c=add('<< /Length '+stream.length+' >>\nstream\n'+stream+'\nendstream');kids.push(add('<< /Type /Page /Parent '+root+' 0 R /MediaBox [0 0 '+W+' '+H+'] /Resources << /Font << /F1 '+f1+' 0 R /F2 '+f2+' 0 R >> >> /Contents '+c+' 0 R >>'))}
+obj[catalog]='<< /Type /Catalog /Pages '+root+' 0 R >>';
+obj[root]='<< /Type /Pages /Kids ['+kids.map(x=>x+' 0 R').join(' ')+'] /Count '+kids.length+' >>';
+const info=add('<< /Title (MINDSPRING Perimenopause, Menopause & Mood Check-In) /Producer (MINDSPRING '+CONFIG.version+') >>');
+let str='%PDF-1.4\n';const off=[0];for(let i=1;i<obj.length;i++){off.push(str.length);str+=i+' 0 obj\n'+obj[i]+'\nendobj\n'}
+const start=str.length;str+='xref\n0 '+obj.length+'\n0000000000 65535 f \n';for(let i=1;i<obj.length;i++)str+=String(off[i]).padStart(10,'0')+' 00000 n \n';
+str+='trailer\n<< /Size '+obj.length+' /Root '+catalog+' 0 R /Info '+info+' 0 R >>\nstartxref\n'+start+'\n%%EOF';
+return new TextEncoder().encode(str)}
+
+render();restore();read();safetyLive();
+// Version: CONFIG.version is the single source; header, PDF footer, and update check all read it
+{const vl=document.getElementById('verLabel');if(vl)vl.textContent='· Version '+CONFIG.version}
+/*STANDALONE*/// Update check (website build only): asks the website only for its version number; no answers are sent.
+const LATEST_URL='https://esandstad.github.io/mindspring/';
+if(typeof fetch==='function'&&navigator.onLine!==false){
+fetch(LATEST_URL+'version.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.version)return;
+const n=v=>Number(String(v).replace(/\D/g,''))||0;if(n(j.version)<=n(CONFIG.version))return;
+const b=document.createElement('div');b.className='warning no-print updatebar';b.setAttribute('role','status');
+b.innerHTML='<b>A newer version ('+escapeHtml(j.version)+') is available.</b> You are using '+escapeHtml(CONFIG.version)+'. <a href="'+LATEST_URL+'">Open the latest version</a> before you start; answers already entered here will not carry over.';
+const m=document.querySelector('main');if(m)m.prepend(b)}).catch(()=>{})}/*ENDSTANDALONE*/
+/*HOSTED*/if(inArtifact){window.claude.use('downloads').then(d=>{downloadsApi=d}).catch(()=>{})}/*END*/
