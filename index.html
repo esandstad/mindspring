@@ -75,7 +75,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v37',
+  version:'v38',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -247,7 +247,7 @@ const fields=[
   ...pcItems.map((q,i)=>['pc'+i,'radio','In the past month, have you '+q,yesNo,{show:V.trauma}]),
   ['pclNote','note','Below is a list of problems that people sometimes have in response to a very stressful experience. Please read each problem carefully and choose how much you have been bothered by that problem in the past month.',null,{show:()=>V.pcPos(),tone:'info'}],
   ...pclItems.map((q,i)=>['pl'+i,'radio',(i+1)+'. '+q,pclOpts,{show:()=>V.pcPos()}])]},
-{section:'Safety at home',intro:'These questions help your psychotherapist understand your safety and relationships. Your answers will appear in your clinical report when you choose to share it. You may skip any question or discuss it privately during your session. Send your report only through your clinician’s secure channel, because someone else could open a downloaded copy. The Quick exit button (or Esc) clears this page right away, and answers on this page are never saved on this device.',quickExit:true,items:[
+{section:'Safety at home',quickExit:true,items:[
   ['unsafe','select','Do you feel unsafe at home right now?',['No','Yes','Prefer to discuss privately']],
   ['hitsGate','select','The next five questions are about a partner. “Partner” means a current or former partner.',['Answer now','Prefer to discuss privately','No partner (current or former) in the past 12 months']],
   ...hits.map((q,i)=>['h'+i,'radio',hitsStem+q,hitsOpts,{show:V.hitsOn}]),
