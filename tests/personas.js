@@ -168,4 +168,22 @@ ok('ask-about-eating note',H(r.flags,/answered No\. Consider asking about eating
 r=await run(b,mk(`sel('age','52');sel('edGate','Yes');[1,1,1,1,1].forEach((v,i)=>set('sc'+i,v));sel('edBinge','Never');chk('edComp','None');`));
 console.log('\nP27 gate Yes, screens negative');
 ok('body image note',H(r.flags,/screens are negative\. Body dissatisfaction/),r.flags);ok('no weight-loss caution',!H(r.flags,/weight-loss medication/),r.flags);
+
+// P28 — OCD gate No: no OCI-R questions, no flags.
+r=await run(b,mk(`sel('age','45');sel('ocGate','No');`));
+console.log('\nP28 OCD gate No');
+ok('no OCI-R flags',!H(r.flags,/OCI-R|OCD/),r.flags);
+// P29 — gate Yes, obsessing-heavy profile (items 6,12,18 = 4; checking 2,8,14 = 3; rest 1) -> total 12+9+12 = 33.
+r=await run(b,mk(`sel('age','47');sel('ocGate','Yes');for(let i=0;i<18;i++)set('oc'+i,[5,11,17].includes(i)?4:[1,7,13].includes(i)?3:1);`));
+console.log('\nP29 OCI-R positive, obsessing highest');
+ok('OCI-R 33 positive, tier 3',H(r.flags,/^clinical: OCI-R 33\/72, at or above the cut-off of 21: OCD is likely\. Subscales: Obsessing 12\/12, Checking 9\/12/)&&H(r.glance,/^Within 7 days: .*OCI-R positive \(33\/72\)/),r.flags);
+ok('mental rituals + post-event rumination notes',H(r.flags,/mental rituals poorly.*post-event rumination/),r.flags);
+ok('OCI-R bar shown',/OCI-R obsessive-compulsive symptoms/.test(r.report),'');
+ok('no hoarding note',!H(r.flags,/Hoarding is the highest/),r.flags);
+// P30 — gate Yes, low scores; and incomplete.
+r=await run(b,mk(`sel('age','50');sel('ocGate','Yes');for(let i=0;i<18;i++)set('oc'+i,[5,11,17].includes(i)?2:0);`));
+console.log('\nP30 OCI-R below cut-off');
+ok('below cut-off with social-anxiety note',H(r.flags,/^clinical: OCI-R 6\/72, below the cut-off of 21\..*assess social anxiety/),r.flags);
+r=await run(b,mk(`sel('age','50');sel('ocGate','Yes');set('oc0',1);`));
+ok('incomplete noted',H(r.flags,/OCI-R incomplete \(1 of 18 answered\)/),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();

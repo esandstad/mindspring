@@ -3,7 +3,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v40',
+  version:'v41',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -84,6 +84,9 @@ const stageOpts=['Regular cycles','Cycles vary by 7+ days','No period for 60–8
 // SCOFF (Morgan, Reid & Lacey, BMJ 1999), public domain; positive at 2 or more
 const scoff=['Do you make yourself sick because you feel uncomfortably full?','Do you worry you have lost control over how much you eat?','Have you recently lost more than 14 pounds (one stone) in a 3-month period?','Do you believe yourself to be fat when others say you are too thin?','Would you say that food dominates your life?'];
 const edCompOpts=['Made yourself vomit','Used laxatives, water pills (diuretics), or diet pills','Fasted or ate very little for a day or more','Exercised hard to make up for eating','None'];
+const ociItems=['I have saved up so many things that they get in the way.','I check things more often than necessary.','I get upset if objects are not arranged properly.','I feel compelled to count while I am doing things.','I find it difficult to touch an object when I know it has been touched by strangers or certain people.','I find it difficult to control my own thoughts.','I collect things I don’t need.','I repeatedly check doors, windows, drawers, etc.','I get upset if others change the way I have arranged things.','I feel I have to repeat certain numbers.','I sometimes have to wash or clean myself simply because I feel contaminated.','I am upset by unpleasant thoughts that come into my mind against my will.','I avoid throwing things away because I am afraid I might need them later.','I repeatedly check gas and water taps and light switches after turning them off.','I need things to be arranged in a particular way.','I feel that there are good and bad numbers.','I wash my hands more often and longer than necessary.','I frequently get nasty thoughts and have difficulty in getting rid of them.'];
+const ociOpts=['Not at all','A little','Moderately','A lot','Extremely'];
+const ociSubs=[['Obsessing',[6,12,18]],['Checking',[2,8,14]],['Ordering',[3,9,15]],['Washing',[5,11,17]],['Neutralizing',[4,10,16]],['Hoarding',[1,7,13]]];
 const V={
   p8pos:()=>answered(state.p8)&&Number(state.p8)>0,
   phqAny:()=>phq.some((_,i)=>Number(state['p'+i])>0),
@@ -94,6 +97,10 @@ V.cs2yes=()=>V.p8pos()&&isYes('cs2');
 V.cs6yes=()=>V.p8pos()&&isYes('cs6');
 V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
 V.ed=()=>state.edGate==='Yes';
+V.oc=()=>state.ocGate==='Yes';
+// OCI-R (Foa et al., 2002): 18 items 0-4, total 0-72, cut-off 21; six 3-item subscales (0-12)
+function ociScore(){if(!V.oc())return null;const v=ociItems.map((_,i)=>state['oc'+i]);const n=v.filter(answered).length;if(n<18)return {n,total:null};
+const t=v.reduce((a,x)=>a+Number(x),0);const sub=ociSubs.map(([k,ix])=>[k,ix.reduce((a,i)=>a+Number(v[i-1]),0)]);return {n,total:t,sub}}
 function scoffScore(){if(!V.ed())return null;const v=[0,1,2,3,4].map(i=>state['sc'+i]);if(!v.every(answered))return null;return v.filter(x=>x==='0').length}
 V.hitsOn=()=>state.hitsGate==='Answer now';
 V.trauma=()=>state.tGate==='Yes';
@@ -123,7 +130,10 @@ const fields=[
   ['phqImpact','radio',difficultyQ,difficulty,{show:V.phqAny}]]},
 {section:'Anxiety · GAD-7',intro:'Over the last 2 weeks, how often have you been bothered by the following problems?',items:[
   ...gad.map((q,i)=>['g'+i,'radio',(i+1)+'. '+q,freq]),
-  ['gadImpact','radio',difficultyQ,difficulty,{show:V.gadAny}]]},
+  ['gadImpact','radio',difficultyQ,difficulty,{show:V.gadAny}],
+  ['ocGate','select','In the past month, have you been bothered by thoughts, images, or urges that keep coming back even when you try to push them away, or felt you had to check, repeat, clean, arrange, or mentally go over things (such as replaying conversations) to feel okay?',['No','Yes','Prefer to discuss in session']],
+  ['ocNote','note','The following statements refer to experiences that many people have in their everyday lives. Choose how much each one has distressed or bothered you during the past month.',null,{show:V.oc,tone:'info'}],
+  ...ociItems.map((q,i)=>['oc'+i,'radio',(i+1)+'. '+q,ociOpts,{show:V.oc}])]},
 {section:'Menopause symptoms · MRS',intro:'Which of the following symptoms apply to you at this time? Please mark the appropriate box for each symptom. For symptoms that do not apply, please mark “none.”',items:mrs.map((q,i)=>['m'+i,'radio',(i+1)+'. '+q,mrsOpts])},
 {section:'Timing and patterns',intro:'Answer for the past 3 months unless a question says otherwise. These questions describe patterns; they do not show what caused your symptoms.',items:[
   ['stage','select','Which best describes your menstrual pattern?',stageOpts,{hint:'Count from your last bleeding of any kind, including spotting. If your periods stopped years ago, choose “No period for 12+ months.”'}],
@@ -420,6 +430,14 @@ if(state.drug==='Yes')F.push(['clinical','Non-prescribed drug use or medication 
 {const pv=Array.from({length:9},(_,i)=>state['p'+i]);if(pv.every(answered)&&new Set(pv).size===1&&Number(pv[0])>0)F.push(['clinical','All nine PHQ-9 items answered the same ('+freq[Number(pv[0])].toLowerCase()+'). This may be accurate or a same-answer pattern; go through the items in session before relying on the total'+(Number(pv[0])===1?', which sits just below the usual cut-off of 10':'')+'.',false,null,null,4,'PHQ-9 same answer on every item'])}
 {const gs=score('g',7),mi=[['irritability',Number(state.m4)],['anxiety',Number(state.m5)]].filter(x=>x[1]>=2);if(gs!==null&&gs<=4&&mi.length)F.push(['clinical','GAD-7 '+gs+' (minimal) but MRS '+mi.map(x=>x[0]+' '+mrsOpts[x[1]].toLowerCase()).join(' and ')+'. Ask directly about anxiety and irritability; menopause-linked irritability may not be captured by the GAD-7.',false,null,null,4,'GAD-7 vs MRS anxiety mismatch'])}
 {const ps=score('p',9),psy=mrsScore(mrsScales[1]);if(ps!==null&&ps<10&&psy.score!==null&&psy.score>=7)F.push(['clinical','MRS psychological '+psy.score+'/16 (severe) but PHQ-9 '+ps+' (below 10). Mood symptoms may be under-reported on the PHQ-9 or concentrated in irritability, anxiety, and exhaustion; clarify in session.',false,null,null,4,'MRS psychological vs PHQ-9 mismatch'])}
+// Obsessive-compulsive symptoms (gated)
+{const O=ociScore();const subTxt=O&&O.sub?O.sub.slice().sort((a,b)=>b[1]-a[1]).map(x=>x[0]+' '+x[1]+'/12').join(', '):'';
+const mental='The OCI-R covers mental rituals poorly (reviewing conversations, reassurance seeking, mental checking); ask about these directly.';
+const social='If the distress centers on replaying conversations afterward and fearing you did something wrong (post-event rumination), assess social anxiety as well as OCD.';
+if(state.ocGate==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss intrusive thoughts or repetitive behaviors in session.',false,null,null,4,'OCD symptoms: discuss in session']);
+if(O&&O.total!==null&&O.total>=21)F.push(['clinical','OCI-R '+O.total+'/72, at or above the cut-off of 21: OCD is likely. Subscales: '+subTxt+'. Confirm with a clinical interview (for example, the Y-BOCS). Exposure and response prevention (ERP) is first-line therapy. Perimenopause can worsen existing OCD. '+mental+' '+social+(O.sub[5][1]>=O.sub.slice(0,5).reduce((a,x)=>Math.max(a,x[1]),0)&&O.sub[5][1]>0?' Hoarding is the highest subscale; hoarding disorder is a separate diagnosis.':''),false,null,null,3,'OCI-R positive ('+O.total+'/72)']);
+else if(O&&O.total!==null)F.push(['clinical','OCI-R '+O.total+'/72, below the cut-off of 21. Subscales: '+subTxt+'. '+mental+' '+social,false,null,null,4,'OCI-R below cut-off']);
+else if(O)F.push(['clinical','Intrusive thoughts or repetitive behaviors reported; OCI-R incomplete ('+O.n+' of 18 answered). Ask directly.',false,null,null,4,'OCI-R incomplete'])}
 // Eating concerns (gated)
 {const SC=scoffScore(),comp=named('edComp'),vom=comp.includes('Made yourself vomit')||(V.ed()&&isYes('sc0')),lax=comp.includes('Used laxatives, water pills (diuretics), or diet pills');
 const fast=comp.includes('Fasted or ate very little for a day or more'),wl=V.ed()&&isYes('sc2'),bingeW=state.edBinge==='About once a week or more',binge=bingeW||state.edBinge==='Less than once a week',dist=isYes('edDistress');
@@ -493,6 +511,7 @@ add('PHQ-9 depression',S.ps,0,27,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'
 add('GAD-7 anxiety',S.gs,0,21,[[0,4,'Minimal'],[5,9,'Mild'],[10,14,'Moderate'],[15,21,'Severe']],['g','y','o','r'],S.gs===null?S.ga+' of 7 answered':null);
 S.mrs.forEach(m=>{let lo=0;const bands=m.bands.map(([hi,lab])=>{const b=[lo,hi===Infinity?m.max:hi,lab];lo=(hi===Infinity?m.max:hi)+1;return b});add(m.key==='total'?'MRS menopause symptoms':'MRS '+m.name.toLowerCase(),m.score,0,m.max,bands,['g','y','o','r'],m.score===null?m.n+' of '+m.items.length+' answered':null)});
 {const A=V.adhdSuspect()?asrsA():null;if(A)add('ASRS Part A, adult ADHD (screen)',A.n,0,6,[[0,3,'Below screening threshold'],[4,6,'Consistent with adult ADHD; evaluate']],['g','o'],null)}
+{const O=ociScore();if(O&&O.total!==null)add('OCI-R obsessive-compulsive symptoms',O.total,0,72,[[0,20,'Below cut-off'],[21,72,'At or above cut-off; assess']],['g','o'],null)}
 {const PC=pcScore();if(PC!==null)add('PC-PTSD-5 trauma screen',PC,0,5,[[0,2,'Below screening cut-off'],[3,5,'Positive screen; assess']],['g','o'],null);const PCL=pclScore();if(PCL)add('PCL-5 PTSD symptoms',PCL.total,0,80,[[0,30,'Below provisional cut-off'],[31,80,'At or above provisional cut-off']],['g','o'],null)}
 {const SC=scoffScore();if(SC!==null)add('SCOFF eating disorder (screen)',SC,0,5,[[0,1,'Below screening cut-off'],[2,5,'Positive screen; assess']],['g','o'],null)}
 add('AUDIT-C alcohol (screen)',S.aud,0,12,[[0,2,'Below screening cut-off'],[3,12,'At or above screening cut-off']],['g','o'],S.aud===null?'not all items answered':null);
