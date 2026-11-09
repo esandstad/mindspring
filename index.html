@@ -76,7 +76,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v41',
+  version:'v42',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -160,6 +160,8 @@ const edCompOpts=['Made yourself vomit','Used laxatives, water pills (diuretics)
 const ociItems=['I have saved up so many things that they get in the way.','I check things more often than necessary.','I get upset if objects are not arranged properly.','I feel compelled to count while I am doing things.','I find it difficult to touch an object when I know it has been touched by strangers or certain people.','I find it difficult to control my own thoughts.','I collect things I don’t need.','I repeatedly check doors, windows, drawers, etc.','I get upset if others change the way I have arranged things.','I feel I have to repeat certain numbers.','I sometimes have to wash or clean myself simply because I feel contaminated.','I am upset by unpleasant thoughts that come into my mind against my will.','I avoid throwing things away because I am afraid I might need them later.','I repeatedly check gas and water taps and light switches after turning them off.','I need things to be arranged in a particular way.','I feel that there are good and bad numbers.','I wash my hands more often and longer than necessary.','I frequently get nasty thoughts and have difficulty in getting rid of them.'];
 const ociOpts=['Not at all','A little','Moderately','A lot','Extremely'];
 const ociSubs=[['Obsessing',[6,12,18]],['Checking',[2,8,14]],['Ordering',[3,9,15]],['Washing',[5,11,17]],['Neutralizing',[4,10,16]],['Hoarding',[1,7,13]]];
+const guPatterns=['Mostly hard or lumpy, or hard to pass (constipation)','Mostly loose or watery (diarrhea)','Switches between hard and loose','Mostly normal','Not sure'];
+const guFlagOpts=['Blood in the stool, or black, tarry stools','Weight loss I wasn’t trying for','Diarrhea that wakes me up at night','Told I have low iron or anemia','Bloating or a bigger belly on most days','Feeling full quickly, or loss of appetite, on most days','Pelvic or lower belly pain on most days','None'];
 const V={
   p8pos:()=>answered(state.p8)&&Number(state.p8)>0,
   phqAny:()=>phq.some((_,i)=>Number(state['p'+i])>0),
@@ -171,6 +173,7 @@ V.cs6yes=()=>V.p8pos()&&isYes('cs6');
 V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
 V.ed=()=>state.edGate==='Yes';
 V.oc=()=>state.ocGate==='Yes';
+V.gu=()=>state.guGate==='Yes';
 // OCI-R (Foa et al., 2002): 18 items 0-4, total 0-72, cut-off 21; six 3-item subscales (0-12)
 function ociScore(){if(!V.oc())return null;const v=ociItems.map((_,i)=>state['oc'+i]);const n=v.filter(answered).length;if(n<18)return {n,total:null};
 const t=v.reduce((a,x)=>a+Number(x),0);const sub=ociSubs.map(([k,ix])=>[k,ix.reduce((a,i)=>a+Number(v[i-1]),0)]);return {n,total:t,sub}}
@@ -228,6 +231,16 @@ const fields=[
   ['bleed','checks','Bleeding changes',groups.bleed],
   ['cardio','checks','New or unexplained heart or breathing symptoms',groups.cardio],
   ['other','checks','Other symptoms',groups.other],
+  ['guGate','select','In the past 3 months, have you had ongoing stomach or belly pain, bloating, feeling full quickly, constipation, or diarrhea?',['No','Yes','Prefer to discuss in session']],
+  ['guNew','radio','When did these stomach or bowel symptoms start?',['Within the past year','More than a year ago','Not sure'],{show:V.gu}],
+  ['guPattern','select','Which best describes your stools most of the time?',guPatterns,{show:V.gu}],
+  ['guPain','radio','Do you have belly pain or discomfort at least one day a week?',yesNo,{show:V.gu}],
+  ['guPainBM','radio','Does the pain change (get better or worse) when you have a bowel movement?',['Yes','No','Not sure'],{show:()=>V.gu()&&isYes('guPain')}],
+  ['guFlags','checks','Have any of these happened in the past 3 months? (Tick all that apply)',guFlagOpts,{show:V.gu}],
+  ['guFam','checks','Has a parent, brother, sister, or child had any of these?',['Bowel (colon or rectal) cancer','Crohn’s disease or ulcerative colitis','Celiac disease','Ovarian cancer','None','Not sure'],{show:V.gu}],
+  ['guPelvic','checks','Do any of these happen? (Tick all that apply)',['Straining, or feeling I haven’t fully emptied','Needing to press or help stool pass','Leaking stool, or not reaching the toilet in time','None'],{show:V.gu}],
+  ['guAvoid','radio','Do stomach or bowel symptoms make you avoid going out, eating out, or being far from a toilet?',['No','Sometimes','Often'],{show:V.gu}],
+  ['guScreen','select','When was your last colon cancer screening (colonoscopy or stool test)?',['Never had one','Colonoscopy within the past 10 years','Stool test within the past year','Longer ago than that','Not sure'],{show:()=>V.gu()&&(!validAge()||Number(state.age)>=45)}],
   ['hormoneTx','checks','Treatments or history that affect hormones',groups.hormoneTx],
   ['ovxAge','number','How old were you when both ovaries were removed?',null,{show:()=>has('hormoneTx','Both ovaries removed')}],
   ['ovxAgeNote','note','Please check this age. It should be a whole number and can’t be higher than your current age.',null,{show:()=>has('hormoneTx','Both ovaries removed')&&answered(state.ovxAge)&&!validOvxAge()}],
@@ -510,6 +523,28 @@ if(state.ocGate==='Prefer to discuss in session')F.push(['clinical','Client pref
 if(O&&O.total!==null&&O.total>=21)F.push(['clinical','OCI-R '+O.total+'/72, at or above the cut-off of 21: OCD is likely. Subscales: '+subTxt+'. Confirm with a clinical interview (for example, the Y-BOCS). Exposure and response prevention (ERP) is first-line therapy. Perimenopause can worsen existing OCD. '+mental+' '+social+(O.sub[5][1]>=O.sub.slice(0,5).reduce((a,x)=>Math.max(a,x[1]),0)&&O.sub[5][1]>0?' Hoarding is the highest subscale; hoarding disorder is a separate diagnosis.':''),false,null,null,3,'OCI-R positive ('+O.total+'/72)']);
 else if(O&&O.total!==null)F.push(['clinical','OCI-R '+O.total+'/72, below the cut-off of 21. Subscales: '+subTxt+'. '+mental+' '+social,false,null,null,4,'OCI-R below cut-off']);
 else if(O)F.push(['clinical','Intrusive thoughts or repetitive behaviors reported; OCI-R incomplete ('+O.n+' of 18 answered). Ask directly.',false,null,null,4,'OCI-R incomplete'])}
+// Stomach and bowel (gated)
+if(state.guGate==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss stomach or bowel symptoms in session.',false,null,null,4,'Gut symptoms: discuss in session']);
+if(V.gu()){const gf=named('guFlags'),fam=named('guFam'),pel=named('guPelvic'),newOn=state.guNew==='0',unsureOn=state.guNew==='2';
+const age2=validAge()?Number(state.age):null;const sub={[guPatterns[0]]:'constipation',[guPatterns[1]]:'diarrhea',[guPatterns[2]]:'mixed',[guPatterns[3]]:'normal stools'}[state.guPattern];
+const alarm=[];if(gf.includes(guFlagOpts[0]))alarm.push('blood in stool');if(gf.includes(guFlagOpts[1]))alarm.push('unintended weight loss');if(gf.includes(guFlagOpts[3]))alarm.push('anemia or low iron');if(gf.includes(guFlagOpts[2]))alarm.push('diarrhea at night');
+if(newOn&&age2!==null&&age2>=50)alarm.push('new bowel symptoms after age 50');
+const famA=fam.filter(x=>!['Ovarian cancer','None','Not sure'].includes(x));if(famA.length)alarm.push('family history of '+famA.join(', ').toLowerCase());
+const serious=gf.includes(guFlagOpts[0])||gf.includes(guFlagOpts[1])||gf.includes(guFlagOpts[3]);
+if(alarm.length)F.push(['medical','Bowel alarm features ('+alarm.join('; ')+'): medical evaluation is needed before these symptoms are put down to IBS, stress, or menopause.'+(serious?' Blood in stool, weight loss, or anemia call for prompt review.':''),false,null,serious?'top':null,serious?2:3,'Bowel alarm features']);
+const ov=[gf.includes(guFlagOpts[4])?'bloating or a bigger belly':'',gf.includes(guFlagOpts[5])?'early fullness or loss of appetite':'',gf.includes(guFlagOpts[6])?'pelvic or lower belly pain':''].filter(Boolean);
+const urg=Number(state.m8)>=2;
+if(ov.length&&(newOn||unsureOn))F.push(['medical','Symptoms on most days that overlap with early ovarian cancer symptoms ('+ov.join('; ')+(urg?'; plus bladder symptoms rated '+mrsOpts[Number(state.m8)].toLowerCase():'')+'), '+(newOn?'starting within the past year':'start date unsure')+(fam.includes('Ovarian cancer')?'; family history of ovarian cancer':'')+'. These are usually not cancer, but the pattern (new, on more than 12 days a month) warrants prompt medical review, typically a pelvic exam, ultrasound, and CA-125 as the physician decides.',false,null,'top',2,'Possible ovarian-cancer symptom pattern']);
+else if(fam.includes('Ovarian cancer'))F.push(['medical','Family history of ovarian cancer: mention to the physician (genetic counseling may be relevant).',false,null,null,3,'Family history of ovarian cancer']);
+const scr=state.guScreen;if(scr&&['Never had one','Longer ago than that','Not sure'].includes(scr)&&(age2===null||age2>=45))F.push(['medical','Colorectal cancer screening '+(scr==='Never had one'?'never done':scr==='Not sure'?'status unsure':'may be overdue')+(age2!==null?' at age '+age2:'')+': US guidance recommends screening from age 45 (colonoscopy every 10 years or a stool test, per the physician).',false,null,null,3,'Colorectal screening due']);
+if(sub==='diarrhea'||sub==='mixed'){if(has('cardio','New or unexplained palpitations')||has('other','Heat intolerance, tremor, or unexplained weight loss'))F.push(['medical','Diarrhea together with palpitations or heat intolerance: ask the physician to check thyroid function.',false,null,null,3,'Diarrhea + palpitations: thyroid'])}
+if(sub==='constipation')F.push(['medical','Mostly constipation: ask the physician to consider thyroid function, medications (some antidepressants, iron, calcium, pain medicines), and pelvic-floor causes.',false,null,null,3,'Constipation: medical review']);
+const pf=pel.filter(x=>x!=='None');if(pf.length)F.push(['medical','Pelvic-floor bowel symptoms ('+pf.join('; ').toLowerCase()+'): a pelvic-floor physical therapy referral may help.'+(pf.some(x=>/Leaking/.test(x))?' Stool leakage is often under-reported; ask about its impact.':''),false,null,null,3,'Pelvic-floor bowel symptoms']);
+else if(Number(state.m8)>=2||Number(state.m9)>=2)F.push(['clinical','Bladder or vaginal symptoms are moderate or worse; ask directly about straining and stool leakage, which people rarely volunteer.',false,null,null,4,'Ask about stool leakage']);
+const ed=named('edComp');if(ed.includes('Made yourself vomit')||ed.includes('Used laxatives, water pills (diuretics), or diet pills'))F.push(['clinical','Laxative use or purging reported in the eating questions: the bowel pattern may reflect these behaviors. Clarify before reading it as IBS.',false,null,null,4,'Bowel pattern vs laxatives/purging']);
+const ibs=isYes('guPain')&&state.guPainBM==='0';
+F.push(['clinical',(ibs?'Pattern consistent with IBS'+(sub&&sub!=='normal stools'?' ('+sub+' type)':'')+': weekly belly pain that changes with bowel movements. ':'Stomach or bowel symptoms reported'+(sub?' ('+sub+')':'')+'. ')+(alarm.length||(ov.length&&(newOn||unsureOn))?'Medical evaluation of the flags above comes first. ':'IBS needs medical confirmation. ')+'If IBS is confirmed, IBS-specific CBT and gut-directed hypnotherapy are effective (roughly 60–70% respond).'+(state.aceQ==='Yes'?' Childhood adversity roughly doubles IBS risk; this can be part of the same work.':''),false,null,null,4,ibs?'IBS-type pattern':'Gut symptoms']);
+if(state.guAvoid==='1'||state.guAvoid==='2')F.push(['clinical','Avoids going out, eating out, or being far from a toilet because of gut symptoms ('+(state.guAvoid==='2'?'often':'sometimes')+'): gut-specific anxiety and avoidance are a direct target of IBS-focused CBT.',false,null,null,4,'Gut-related avoidance'])}
 // Eating concerns (gated)
 {const SC=scoffScore(),comp=named('edComp'),vom=comp.includes('Made yourself vomit')||(V.ed()&&isYes('sc0')),lax=comp.includes('Used laxatives, water pills (diuretics), or diet pills');
 const fast=comp.includes('Fasted or ate very little for a day or more'),wl=V.ed()&&isYes('sc2'),bingeW=state.edBinge==='About once a week or more',binge=bingeW||state.edBinge==='Less than once a week',dist=isYes('edDistress');

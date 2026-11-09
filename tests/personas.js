@@ -186,4 +186,35 @@ console.log('\nP30 OCI-R below cut-off');
 ok('below cut-off with social-anxiety note',H(r.flags,/^clinical: OCI-R 6\/72, below the cut-off of 21\..*assess social anxiety/),r.flags);
 r=await run(b,mk(`sel('age','50');sel('ocGate','Yes');set('oc0',1);`));
 ok('incomplete noted',H(r.flags,/OCI-R incomplete \(1 of 18 answered\)/),r.flags);
+
+// P31 — gut gate No: no gut flags.
+r=await run(b,mk(`sel('age','58');sel('guGate','No');`));
+console.log('\nP31 gut gate No');
+ok('no gut flags',!H(r.flags,/IBS|bowel|Bowel|ovarian|Colorectal/),r.flags);
+// P32 — 58, new symptoms within year, bloating + early fullness most days, bladder moderate, mixed stools, weekly pain changing with BM, never screened, palpitations, ACE yes.
+r=await run(b,mk(`sel('age','58');set('m8',2);sel('aceQ','Yes');chk('cardio','New or unexplained palpitations');sel('guGate','Yes');set('guNew',0);sel('guPattern','Switches between hard and loose');set('guPain',0);read();set('guPainBM',0);chk('guFlags','Bloating or a bigger belly on most days');chk('guFlags','Feeling full quickly, or loss of appetite, on most days');sel('guScreen','Never had one');set('guAvoid',1);`));
+console.log('\nP32 58, new bloating + fullness, mixed IBS pattern');
+ok('alarm: new after 50',H(r.flags,/^medical: Bowel alarm features \(new bowel symptoms after age 50\)/),r.flags);
+ok('ovarian pattern tier 2 with bladder',H(r.flags,/early ovarian cancer symptoms \(bloating or a bigger belly; early fullness or loss of appetite; plus bladder symptoms rated moderate\), starting within the past year/)&&H(r.glance,/^Within 1 business day: .*Possible ovarian-cancer symptom pattern/),r.glance);
+ok('screening due at 58',H(r.flags,/Colorectal cancer screening never done at age 58/),r.flags);
+ok('thyroid for mixed + palpitations',H(r.flags,/Diarrhea together with palpitations/),r.flags);
+ok('IBS pattern, mixed type, evaluation first, ACE note',H(r.flags,/Pattern consistent with IBS \(mixed type\).*Medical evaluation of the flags above comes first.*Childhood adversity/),r.flags);
+ok('avoidance note',H(r.flags,/Avoids going out.*\(sometimes\)/),r.flags);
+ok('ask about leakage (bladder moderate, no pelvic answer)',H(r.flags,/ask directly about straining and stool leakage/),r.flags);
+ok('no errors',!r.errs.length,r.errs);
+// P33 — 35, long-standing diarrhea, blood in stool, leakage, laxatives in eating module.
+r=await run(b,mk(`sel('age','35');sel('guGate','Yes');set('guNew',1);sel('guPattern','Mostly loose or watery (diarrhea)');set('guPain',1);chk('guFlags','Blood in the stool, or black, tarry stools');chk('guPelvic','Leaking stool, or not reaching the toilet in time');sel('edGate','Yes');chk('edComp','Used laxatives, water pills (diuretics), or diet pills');`));
+console.log('\nP33 35, diarrhea with blood, leakage, laxatives');
+ok('blood alarm tier 2',H(r.glance,/^Within 1 business day: .*Bowel alarm features/)&&H(r.flags,/Bowel alarm features \(blood in stool\):.*prompt review/),r.flags);
+ok('no screening question/flag under 45',!H(r.flags,/Colorectal/)&&!r.report.includes('colon cancer screening'),r.flags);
+ok('no ovarian flag',!H(r.flags,/ovarian/),r.flags);
+ok('pelvic floor leakage',H(r.flags,/Pelvic-floor bowel symptoms \(leaking stool.*Stool leakage is often under-reported/),r.flags);
+ok('laxative caveat',H(r.flags,/bowel pattern may reflect these behaviors/),r.flags);
+ok('not IBS pattern, gut symptoms note',H(r.flags,/^clinical: Stomach or bowel symptoms reported \(diarrhea\)/),r.flags);
+// P34 — 40, constipation, long-standing, no flags, screened N/A.
+r=await run(b,mk(`sel('age','40');sel('guGate','Yes');set('guNew',1);sel('guPattern','Mostly hard or lumpy, or hard to pass (constipation)');set('guPain',0);read();set('guPainBM',0);chk('guFlags','None');`));
+console.log('\nP34 40, long-standing constipation IBS pattern');
+ok('constipation medical review',H(r.flags,/Mostly constipation: ask the physician/),r.flags);
+ok('IBS constipation type, needs confirmation',H(r.flags,/Pattern consistent with IBS \(constipation type\).*IBS needs medical confirmation/),r.flags);
+ok('no alarm',!H(r.flags,/alarm/),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();
