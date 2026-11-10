@@ -144,7 +144,7 @@ console.log('\nP23 eating gate No');
 ok('no eating flags',!H(r.flags,/SCOFF|eating|Purging|binge/i),r.flags);
 // P24 — same case plus eating gate Yes: SCOFF 2 (control, food dominates), weekly binge with distress, fasting; palpitations; item 9 positive; periods stopped 40-44.
 // EXPECT: SCOFF bar + positive flag tier 3; binge flag tier 3; restriction flag mentions early-menopause bone risk; weight-loss caution; eating+suicide tier 2; no purging flag.
-r=await run(b,mk(`sel('age','58');for(let i=0;i<9;i++)set('p'+i,1);read();set('cs1',0);set('cs2',1);set('cs6',1);set('nssi',1);sel('stage','No period for 12+ months');sel('periodStop','Yes, between ages 40 and 44');chk('cardio','New or unexplained palpitations');sel('bodyImpact','Moderately');sel('edGate','Yes');[1,0,1,1,0].forEach((v,i)=>set('sc'+i,v));sel('edBinge','About once a week or more');read();set('edDistress',0);chk('edComp','Fasted or ate very little for a day or more');sel('edPast','No');`));
+r=await run(b,mk(`sel('age','58');for(let i=0;i<9;i++)set('p'+i,1);read();set('cs1',0);set('cs2',1);set('cs6',1);set('nssi',1);sel('stage','No period for 12+ months');sel('periodStop','Yes, between ages 40 and 44');chk('cardio','New or unexplained palpitations');sel('shape','Moderate');sel('bodyImpact','Moderately');sel('edGate','Yes');[1,0,1,1,0].forEach((v,i)=>set('sc'+i,v));sel('edBinge','About once a week or more');read();set('edDistress',0);chk('edComp','Fasted or ate very little for a day or more');sel('edPast','No');`));
 console.log('\nP24 eating module positive (binge + restriction)');
 ok('SCOFF positive 2/5',H(r.flags,/^clinical: SCOFF 2 of 5 \(positive at 2 or more\)/),r.flags);
 ok('SCOFF severity bar',/SCOFF eating disorder \(screen\)/.test(r.report),'');
@@ -161,7 +161,7 @@ ok('purging flag tier 2 with potassium',H(r.glance,/^Within 1 business day: .*Pu
 ok('SCOFF 1/5 below cut-off but purging still flagged',H(r.flags,/SCOFF 1 of 5, below/),r.flags);
 ok('no distress question when no binge',!r.report.includes('distressed by these episodes'),'');
 // P26 — gate No but appetite + body image moderate: prompt to ask.
-r=await run(b,mk(`sel('age','55');set('p4',2);sel('bodyImpact','A great deal');sel('edGate','No');`));
+r=await run(b,mk(`sel('age','55');set('p4',2);sel('shape','Moderate');sel('bodyImpact','A great deal');sel('edGate','No');`));
 console.log('\nP26 gate No but appetite and body image');
 ok('ask-about-eating note',H(r.flags,/answered No\. Consider asking about eating directly/),r.flags);
 // P27 — gate Yes, screens negative: body image note.

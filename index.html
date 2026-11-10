@@ -63,6 +63,11 @@ h4{font-size:15px;margin:16px 0 4px}.checkline{display:flex;gap:8px;align-items:
 @media print{.sev{break-inside:avoid}}
 input[type=date]{-webkit-appearance:none;appearance:none;display:block;min-width:0;max-width:100%;min-height:46px;text-align:left}input[type=date]::-webkit-date-and-time-value{text-align:left}
 .byname{font-weight:700;color:var(--ink)}
+.q.cond{margin-left:14px;padding-left:14px;border-left:3px solid var(--line)}
+.q.cond.reveal{animation:revealq .28s ease-out;border-left-color:var(--teal)}
+@keyframes revealq{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.q.cond.reveal{animation:none}}
+@media(max-width:640px){.q.cond{margin-left:6px;padding-left:10px}}
 .thanks{border-left:5px solid var(--teal);font-size:17px}.thanks p{margin:6px 0}
 .ver{font-size:13px;letter-spacing:.04em;font-weight:600;color:var(--muted);margin-left:4px}
 .instr{font-size:18px;line-height:1.45;font-weight:700;color:var(--ink);margin:6px 0 12px;max-width:60ch}#step0 .instr:first-of-type{font-size:21px}#step0 .instr:last-of-type{font-size:15px;font-weight:600;color:var(--muted)}
@@ -76,7 +81,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v47',
+  version:'v48',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -177,6 +182,7 @@ V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
 V.ed=()=>state.edGate==='Yes';
 V.oc=()=>state.ocGate==='Yes';
 V.gu=()=>state.guGate==='Yes';
+V.sedQ=()=>V.insom()||V.p8pos()||(score('g',7)||0)>=10||(score('p',9)||0)>=10||(auditC()||0)>=3;
 V.insom=()=>Number(state.m2)>=2||Number(state.p2)>=2;
 V.slAny=()=>named('slp').some(x=>x!==slOpts[1]&&x!==slOpts[4]&&x!==slOpts[5])||(named('slp').includes(slOpts[1])&&validAge()&&Number(state.age)>50);
 // OCI-R (Foa et al., 2002): 18 items 0-4, total 0-72, cut-off 21; six 3-item subscales (0-12)
@@ -226,7 +232,7 @@ const fields=[
   ['cog','select','Are changes in memory or thinking getting worse, getting in the way of daily life, or noticed by others?',['No','Yes','Not sure']],
   ['support','radio','Do you have people, activities, or routines that help you feel supported and more like yourself?',ynOpts],
   ['shape','select','Have you noticed changes in your weight, waistline, or body shape?',['Not at all','Mild','Moderate','Significant','Not sure']],
-  ['bodyImpact','select','How much have these changes affected how you feel about yourself?',['Not at all','A little','Moderately','A great deal','Not sure']],
+  ['bodyImpact','select','How much have these changes affected how you feel about yourself?',['Not at all','A little','Moderately','A great deal','Not sure'],{show:()=>['Mild','Moderate','Significant','Not sure'].includes(state.shape)}],
   ['edGate','select','In the past 3 months, have worries about eating, weight, or body shape taken up a lot of your thoughts, or have you had times when eating felt out of control or you ate very little to control your weight?',['No','Yes','Prefer to discuss in session']],
   ['edNote','note','Thank you. A few short questions help your psychotherapist understand this. Skip any you prefer not to answer.',null,{show:V.ed,tone:'info'}],
   ...scoff.map((q,i)=>['sc'+i,'radio',(i+1)+'. '+q,yesNo,{show:V.ed}]),
@@ -268,7 +274,7 @@ const fields=[
   ['hormones','textarea','Details about hormonal contraception, hormone therapy, or testosterone (creams, gels, injections, or pellets): what, current or past, and for how long (optional)'],
   ['meds','textarea','Other medications (including antidepressants, blood pressure medicines, and pain medicines), major medical conditions, or thyroid concerns (optional)'],
   ['history','checks','Mental health history',groups.history],
-  ['adhdMed','select','Are you currently taking ADHD medication (for example, a stimulant)?',['No','Yes','Not sure']],
+  ['adhdMed','select','Are you currently taking ADHD medication (for example, a stimulant)?',['No','Yes','Not sure'],{show:()=>V.adhdHist()||V.attnComplaint()}],
   ['adhdChild','select','Have problems with attention, organization, or restlessness been part of your life since childhood (before age 12)?',['No','Yes','Not sure'],{show:()=>V.adhdChildQ()}],
   ['asrsNote','note','A few questions about attention and focus (Adult ADHD Self-Report Scale, Part A). Rate how you have felt and conducted yourself over the past 6 months.',null,{show:()=>V.adhdSuspect(),tone:'info'}],
   ...asrsItems.slice(0,6).map((q,i)=>['a'+i,'radio','ASRS '+(i+1)+'. '+q,asrsOpts,{show:()=>V.adhdSuspect()}]),
@@ -278,7 +284,7 @@ const fields=[
   ['audit1','select','How often do you have a drink containing alcohol?',audit1],
   ['audit2','select','How many standard drinks containing alcohol do you have on a typical day? (One standard drink is 12 oz of beer, 5 oz of wine, or 1.5 oz of liquor.)',audit2,{show:V.drinks}],
   ['audit3','select','How often do you have 4 or more drinks on one occasion?',audit3,{show:V.drinks}],
-  ['sedat','checks','In the past 3 months, have you taken any of these? (Tick all that apply)',sedOpts],
+  ['sedat','checks','In the past 3 months, have you taken any of these? (Tick all that apply)',sedOpts,{show:V.sedQ}],
   ['drug','select','Any non-prescribed drug use or medication misuse in the past year?',['No','Yes','Prefer not to answer']],
   ['pregnancy','checks','Optional, for your medical clinician: pregnancy history',groups.pregnancy]]},
 {section:'Difficult Experiences',intro:'Some experiences can continue to affect us long after they happen. The following questions help us understand whether past experiences may be affecting how you feel today.\n\nYou can skip any question or choose to discuss it during your session instead.\n\nIf you start to feel overwhelmed, pause, breathe slowly, and notice your feet on the floor. The Quick exit button clears this page right away. Answers on this page are never saved on this device.',quickExit:true,items:[
@@ -337,7 +343,7 @@ const ss={get(){try{return sessionStorage.getItem(STORE)}catch(e){return null}},
 const isShown=it=>!(it[4]&&it[4].show)||it[4].show();
 
 function makeField(f){const [id,type,label,opts,o]=f;
-if(type==='note')return '<div class="q noteq" id="q_'+id+'"><div class="'+(o&&o.tone==='info'?'panel':'warning '+(o&&o.tone==='urgent'?'urgent':''))+'">'+escapeHtml(label)+'</div></div>';
+if(type==='note')return '<div class="q noteq'+(o&&o.show?' cond':'')+'" id="q_'+id+'"><div class="'+(o&&o.tone==='info'?'panel':'warning '+(o&&o.tone==='urgent'?'urgent':''))+'">'+escapeHtml(label)+'</div></div>';
 const grouped=type==='radio'||type==='checks';
 let x='<div class="q'+(o&&o.show?' cond':'')+'" id="q_'+id+'">'+(grouped?'<strong id="l_'+id+'">'+escapeHtml(label)+'</strong>':type==='check'?'':'<label for="f_'+id+'">'+escapeHtml(label)+'</label>');
 if(type==='radio')x+='<div class="choices" role="radiogroup" aria-labelledby="l_'+id+'">'+opts.map((v,i)=>'<label><input type="radio" name="'+id+'" value="'+i+'">'+escapeHtml(v)+'</label>').join('')+'</div>';
@@ -373,7 +379,7 @@ else if(type==='checks')document.querySelectorAll('input[name="'+id+'"]').forEac
 else if(type!=='note'){const e=el('f_'+id);if(e.type==='checkbox')e.checked=false;else e.value=''}
 state[id]=type==='checks'?[]:type==='check'?false:''}
 // Read answers, then hide and clear anything whose condition no longer holds (so stale answers never count)
-function read(){readRaw();for(let pass=0;pass<3;pass++){let changedAny=false;for(const {it} of allItems){const [id,type]=it;const show=isShown(it);const q=el('q_'+id);if(q&&q.hidden===show){q.hidden=!show}if(!show&&type!=='note'){const had=type==='checks'?state[id]&&state[id].length:type==='check'?state[id]:answered(state[id]);if(had){clearItem(id,type);changedAny=true}}}if(!changedAny)break}}
+function read(){readRaw();for(let pass=0;pass<3;pass++){let changedAny=false;for(const {it} of allItems){const [id,type]=it;const show=isShown(it);const q=el('q_'+id);if(q&&q.hidden===show){q.hidden=!show;if(show&&window.revealOn){q.classList.remove('reveal');void q.offsetWidth;q.classList.add('reveal')}}if(!show&&type!=='note'){const had=type==='checks'?state[id]&&state[id].length:type==='check'?state[id]:answered(state[id]);if(had){clearItem(id,type);changedAny=true}}}if(!changedAny)break}}
 
 function changed(e){const t=e.target;
 const excl={'Hysterectomy (uterus removed), ovaries kept':'Both ovaries removed','Both ovaries removed':'Hysterectomy (uterus removed), ovaries kept','ADHD (diagnosed)':'Attention problems since childhood, never diagnosed','Attention problems since childhood, never diagnosed':'ADHD (diagnosed)'};
@@ -861,7 +867,7 @@ const start=str.length;str+='xref\n0 '+obj.length+'\n0000000000 65535 f \n';for(
 str+='trailer\n<< /Size '+obj.length+' /Root '+catalog+' 0 R /Info '+info+' 0 R >>\nstartxref\n'+start+'\n%%EOF';
 return new TextEncoder().encode(str)}
 
-render();restore();read();safetyLive();
+render();restore();read();safetyLive();window.revealOn=true;
 // Version: CONFIG.version is the single source; header, PDF footer, and update check all read it
 {const vl=document.getElementById('verLabel');if(vl)vl.textContent='· Version '+CONFIG.version}
 /*STANDALONE*/// Update check (website build only): asks the website only for its version number; no answers are sent.
