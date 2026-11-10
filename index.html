@@ -81,7 +81,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v48',
+  version:'v49',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -271,8 +271,8 @@ const fields=[
   ['mht','select','Are you currently using menopausal hormone therapy (estrogen, with or without progestogen)?',['No','Yes','Not sure']],
   ['periodStop','select','Did your periods stop for good (12 months or more without one) before age 45?',['No','Yes, before age 40','Yes, between ages 40 and 44','Unsure','Not applicable'],{show:()=>!periodsMasked()&&!(has('hormoneTx','Both ovaries removed')&&validOvxAge())}],
   ['pregPossible','select','Could you be pregnant?',['No','Yes','Unsure','Not applicable']],
-  ['hormones','textarea','Details about hormonal contraception, hormone therapy, or testosterone (creams, gels, injections, or pellets): what, current or past, and for how long (optional)'],
-  ['meds','textarea','Other medications (including antidepressants, blood pressure medicines, and pain medicines), major medical conditions, or thyroid concerns (optional)'],
+  ['hormones','textarea','Details about your hormone use (contraception, hormone therapy, or testosterone creams, gels, injections, or pellets): name, dose, and how long (optional)',null,{show:()=>named('contraNow').filter(x=>x!=='None').length>0||['Yes','Not sure'].includes(state.injection)||['Yes','Not sure'].includes(state.mht)||named('hormoneTx').some(x=>/GnRH|Tamoxifen|Aromatase/.test(x))}],
+  ['meds','textarea','Medicines and supplements you take regularly, with the dose if you know it (for example: sertraline 50 mg daily; vitamin D 2000 IU; black cohosh; magnesium). Also any major medical conditions (optional)',null,{hint:'Prescribed medicines, over-the-counter products, vitamins, and herbal or menopause supplements can all affect mood, sleep, and hot flushes. A photo of your pill bottles at your session works too.'}],
   ['history','checks','Mental health history',groups.history],
   ['adhdMed','select','Are you currently taking ADHD medication (for example, a stimulant)?',['No','Yes','Not sure'],{show:()=>V.adhdHist()||V.attnComplaint()}],
   ['adhdChild','select','Have problems with attention, organization, or restlessness been part of your life since childhood (before age 12)?',['No','Yes','Not sure'],{show:()=>V.adhdChildQ()}],
@@ -280,7 +280,7 @@ const fields=[
   ...asrsItems.slice(0,6).map((q,i)=>['a'+i,'radio','ASRS '+(i+1)+'. '+q,asrsOpts,{show:()=>V.adhdSuspect()}]),
   ['asrsBNote','note','Some more questions about attention and focus (ASRS Part B), over the past 6 months. These help your psychotherapist understand the pattern.',null,{show:()=>V.asrsB(),tone:'info'}],
   ...asrsItems.slice(6).map((q,i)=>['a'+(i+6),'radio','ASRS '+(i+7)+'. '+q,asrsOpts,{show:()=>V.asrsB()}]),
-  ['pastRx','textarea','Past antidepressants or other mental-health treatment, and what helped (optional)'],
+  ['pastRx','textarea','Past antidepressants or other mental-health treatment, and what helped (optional)',null,{show:()=>['Prior depression','PMDD','Postpartum depression','Anxiety disorder','Bipolar disorder / mania / hypomania','Psychiatric hospitalization','Prior suicide attempt'].some(x=>has('history',x))||(score('p',9)||0)>=10||(score('g',7)||0)>=10}],
   ['audit1','select','How often do you have a drink containing alcohol?',audit1],
   ['audit2','select','How many standard drinks containing alcohol do you have on a typical day? (One standard drink is 12 oz of beer, 5 oz of wine, or 1.5 oz of liquor.)',audit2,{show:V.drinks}],
   ['audit3','select','How often do you have 4 or more drinks on one occasion?',audit3,{show:V.drinks}],

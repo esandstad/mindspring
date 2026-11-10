@@ -73,7 +73,7 @@ await p.selectOption('#f_injection','No');ok('19 stopped pill (nothing current t
 await p.click('input[name=other][value="Flushing with diarrhea or wheezing"]');await p.click('input[name=other][value="Milky nipple discharge, or headaches with changes in vision"]');
 ok('20 carcinoid + prolactinoma items flag',has(await fl(p),/flushing with diarrhea or wheezing; milky nipple discharge/));
 await p.selectOption('#f_mht','Yes');ok('21 MHT context flag',has(await fl(p),/hormone therapy: low hot-flush/));
-ok('22 meds question names antidepressants',/antidepressants/.test(await p.locator('#q_meds').innerText()));errs.push(...p.errs);
+ok('22 meds question asks for medicines, supplements and dose',/supplements/.test(await p.locator('#q_meds').innerText())&&/dose/.test(await p.locator('#q_meds').innerText()));errs.push(...p.errs);
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',N);await R(p,'cs6',N);await go(p,5);await p.click('input[name=history][value="Self-harm without wanting to die"]');
 ok('23 past self-harm history: red notice',(await live(p)).includes('Safety notice'),await live(p));
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',Y);await R(p,'cs3',N);await R(p,'cs4',N);await R(p,'cs5',N);await R(p,'cs6',N);
