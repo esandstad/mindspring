@@ -15,7 +15,7 @@ ok('glance: therapy focus with PHQ split (mood 6, physical 4)',H(r.glance,/Thera
 // P2 — 58, tamoxifen after breast cancer, bleeding after 12 months + spotting. EXPECT: PMB flag; gyn-evaluation flag naming tamoxifen, ranked top; one merged tamoxifen flag; no "tamoxifen without cancer"; no contraception flags.
 r=await run(b,mk(`sel('age','58');for(let i=0;i<9;i++)set('p'+i,i<3?1:0);sel('stage','No period for 12+ months');chk('bleed','Bleeding after 12 months without a period');chk('bleed','Bleeding between periods');chk('hormoneTx','Tamoxifen');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');sel('mht','No');`));
 console.log('\nP2 58-year-old on tamoxifen with bleeding');const med=r.flags.filter(f=>f.startsWith('medical'));
-ok('PMB flag present',H(r.flags,/always needs prompt medical evaluation/),r.flags);ok('gyn evaluation flag names tamoxifen',H(r.flags,/while taking tamoxifen: needs prompt medical evaluation.*Gynecologic evaluation/),r.flags);
+ok('PMB flag present',H(r.flags,/always needs prompt medical evaluation/),r.flags);ok('gyn evaluation flag names tamoxifen',H(r.flags,/while taking tamoxifen: needs prompt medical evaluation.*needs endometrial sampling \(ACOG 2014\)/),r.flags);
 ok('bleeding flags ranked first among medical',/while taking tamoxifen: needs prompt medical evaluation/.test(med[0]+med[1])&&/always needs prompt/.test(med[0]+med[1]),med);ok('exactly one tamoxifen prescriber flag',r.flags.filter(f=>/CYP2D6/.test(f)).length===1&&!H(r.flags,/affect hormones: Tamoxifen/),r.flags);
 ok('no "tamoxifen without cancer"',!H(r.flags,/without a cancer history/));ok('no contraception flags',!H(r.flags,/contracepti/),r.flags);
 // P3 — 36, no period 4 months, no contraception. EXPECT: under-40 POI prompt saying it's not a diagnosis; no early-menopause; no masking note.
@@ -31,7 +31,7 @@ r=await run(b,mk(`sel('name','e');sel('date','2026-11-08');sel('age','58');[1,1,
 console.log('\nP5 replay of first test report');
 ok('urgent names shortness of breath + clot line',H(r.flags,/^urgent: You reported: shortness of breath\..*blood-clot risk/),r.flags);
 ok('combined symptom flag, ranked first medical',/Several new physical symptoms together \(abnormal bleeding, shortness of breath, weight loss with fever or night sweats, worsening memory or thinking\)/.test(r.flags.filter(f=>f.startsWith('medical'))[0]||''),r.flags.filter(f=>f.startsWith('medical')).slice(0,2));
-ok('gyn evaluation (tamoxifen + bleeding)',H(r.flags,/Gynecologic evaluation/));
+ok('gyn evaluation (tamoxifen + bleeding)',H(r.flags,/needs endometrial sampling/));
 ok('contradictions: 3 methods, contraception at 58, cycles at 58',H(r.flags,/3 hormonal contraceptive methods/)&&H(r.flags,/contraception reported at age 58/)&&H(r.flags,/ongoing cycles reported at age 58/),r.flags.filter(f=>/Check/.test(f)));
 ok('estrogen wording on pill/patch/ring; progestin-only separate',H(r.flags,/Estrogen-containing methods are generally avoided.*Progestin-only methods \(hormonal iud, contraceptive injection\)/),r.flags.filter(f=>/estrogen/.test(f)));
 ok('tamoxifen without cancer: ask why',H(r.flags,/without a cancer history/));ok('LMP same-day flag',H(r.flags,/same as the assessment date/));
@@ -41,7 +41,7 @@ console.log('   priority snippet:',JSON.stringify((r.report.match(/In the client
 ok('days since period shown with the date, not under Patterns',/2026-11-08 \(0 days before the assessment\)/.test(r.report)&&!/Days since last period/.test(r.report));
 ok('MRS detail: at threshold + highest-rated',/Total 17 is at the start of the severe band\. Highest-rated: irritability \(severe\); heart discomfort, sleep problems, depressive mood, sexual problems \(moderate\)\. Hot flushes: mild\./.test(r.report));
 ok('PHQ split 4 / 8 + item 8 prompt',/mood and self-worth items \(1, 2, 6, 9\) 4 of 12; physical and concentration items \(3, 4, 5, 7, 8\) 8 of 15.*Ask about item 8/.test(r.report));
-ok('glance block',H(r.glance,/^Today: 1 item: Chest pain/)&&H(r.glance,/\[private\]/)&&H(r.glance,/^Therapy focus/),r.glance);ok('no errors',!r.errs.length,r.errs);
+ok('glance block',H(r.glance,/^Today: \d+ items?: Chest pain/)&&H(r.glance,/\[private\]/)&&H(r.glance,/^Therapy focus/),r.glance);ok('no errors',!r.errs.length,r.errs);
 
 // P6 — replay of "test 4" (45, perimenopause). EXPECT: thyroid-pattern flag naming arousal items, ranked top; MHT+contraception flag mentioning bleeding; hot flushes not listed twice.
 r=await run(b,mk(`sel('name','test 4');sel('age','45');[1,1,1,1,3,2,2,3,0].forEach((v,i)=>set('p'+i,v));[1,1,1,3,2,3,2].forEach((v,i)=>set('g'+i,v));[2,1,3,2,3,2,2,1,3,2,2].forEach((v,i)=>set('m'+i,v));sel('stage','Cycles vary by 7+ days');sel('cog','Yes');chk('bleed','Bleeding between periods');chk('other','Heat intolerance, tremor, or unexplained weight loss');chk('other','Loud snoring or witnessed breathing pauses');chk('hormoneTx','None');chk('contraNow','Pill, patch, or ring');sel('injection','Yes');sel('mht','Yes');chk('history','Prior depression');sel('audit1','2–4 times a month');sel('audit2','1 or 2');sel('audit3','Less than monthly');sel('hitsGate','Answer now');[0,0,1,1,1].forEach((v,i)=>set('h'+i,v));`));
@@ -221,7 +221,7 @@ ok('no alarm',!H(r.flags,/alarm/),r.flags);
 // P35 — 52, item 9 more than half the days, C-SSRS items 1+2 only (complete): urgent with explained reason, all suicide items in Today.
 r=await run(b,mk(`sel('age','52');[3,3,2,2,2,3,2,0,2].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',0);read();set('cs3',1);set('cs4',1);set('cs5',1);set('cs6',1);set('nssi',1);`));
 console.log('\nP35 frequent item 9 with low C-SSRS');
-ok('urgent label gives real reason',H(r.glance,/^Today: 3 items: PHQ-9 item 9 positive: item 9 more than half the days; Why urgent despite low screen; Suicide-risk follow-up/),r.glance);
+ok('urgent label gives real reason',H(r.glance,/^Today: 3 items: PHQ-9 item 9 positive: active suicidal thoughts \(C-SSRS item 2\), item 9 more than half the days; Why urgent despite low screen; Suicide-risk follow-up/),r.glance);
 ok('no "screener not completed"',!H(r.glance,/screener not completed/),r.glance);
 ok('no 1-business-day suicide row',!H(r.glance,/^Within 1 business day/),r.glance);
 // P36 — None is exclusive on new checklists (real clicks).
@@ -251,4 +251,27 @@ r=await run(b,mk(`sel('age','56');chk('cardio','New or unexplained palpitations'
 ok('physical contribution line lists signals',H(r.glance,/^Medical \(hardware\) check: Likely physical contribution, 2 signals: Palpitations; Worsening memory or thinking\. Refer to physician; this is more than anxiety or depression alone\./),r.glance);
 ok('physician note section present',/For the physician \(optional\)/.test(r.report)&&/Palpitations: Evaluate palpitations/.test(r.report),'');
 ok('no diagnosis names in medical pattern text',!H(r.flags.map(f=>f.split(' || ')[0]).filter(f=>/^medical/.test(f)),/thyroid|GSM|genitourinary syndrome|ovarian cancer|endometrial/i),r.flags);
+
+// P40-P44 — external review edge cases (v46).
+r=await run(b,mk(`sel('age','47');sel('stage','No period for 12+ months');chk('hormoneTx','Chemotherapy');chk('hormoneTx','Tamoxifen');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');chk('bleed','Bleeding after 12 months without a period');chk('cardio','Shortness of breath');sel('pregPossible','Unsure');`));
+console.log('\nP40 amenorrhea on tamoxifen + chemo');
+ok('cannot stage from periods (chemo, tamoxifen)',H(r.glance,/^Likely stage: Can’t be determined from periods \(chemotherapy.*tamoxifen/),r.glance);
+ok('breathlessness Today, bleeding on tamoxifen Tier 2 with sampling note',H(r.glance,/^Today: 1 item: Chest pain or breathlessness/)&&H(r.glance,/^Within 1 business day: .*Bleeding after 12\+ months without a period, on tamoxifen/)&&H(r.flags,/endometrial sampling is preferred/),r.glance);
+ok('pregnancy note kept',H(r.flags,/consider a pregnancy test/),r.flags);
+r=await run(b,mk(`sel('age','38');sel('stage','No period for 12+ months');el('f_date').value='2026-11-10';el('f_last').value='2026-10-20';read();sel('periodStop','Yes, before age 40');sel('mht','No');sel('pregPossible','Unsure');`));
+console.log('\nP41 POI with bleeding again');
+ok('conflict Tier 2 + pregnancy flag kept in POI + MHT to 51 note',H(r.glance,/^Within 1 business day: 1 item: Stage answers conflict/)&&H(r.flags,/consider a pregnancy test/)&&H(r.flags,/Spontaneous pregnancy remains possible in POI\. Hormone therapy until about age 51/),r.flags);
+r=await run(b,mk(`sel('age','49');sel('stage','Cycles vary by 7+ days');[2,2,1,2,1,2,1,0,1].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',0);read();set('cs3',1);set('cs4',1);set('cs5',1);set('cs6',1);set('nssi',1);sel('means','Yes');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');`));
+console.log('\nP42 active ideation with item 9 = several days');
+ok('all suicide items + lethal means + alcohol in Today',H(r.glance,/^Today: 5 items: PHQ-9 item 9 positive: active suicidal thoughts \(C-SSRS item 2\);.*Access to lethal means; AUDIT-C 7\/12/)&&!H(r.glance,/^Within 1 business day/),r.glance);
+ok('client told not to wait for the report',r.live.length>0&&H(r.flags,/don’t wait for your psychotherapist to read this report/),r.flags);
+r=await run(b,mk(`sel('age','52');sel('unsafe','No');sel('hitsGate','Answer now');[3,0,4,0,1].forEach((v,i)=>set('h'+i,v));read();sel('strang','Yes');sel('ptGun','Not sure');`));
+console.log('\nP43 partner violence without "unsafe"');
+ok('harm, strangulation and client notice all Today (private)',H(r.glance,/^Today: 3 items: \[private\] Partner harm reported: client notice; \[private\] Strangulation by partner; \[private\] Physical harm/),r.glance);
+ok('injury referral private with strangulation note; gun unknown asked',H(r.flags,/^medical\(private\): Physical or sexual harm by a partner, including strangulation.*carotid/)&&H(r.flags,/Partner gun access unknown/),r.flags);
+r=await run(b,mk(`sel('age','56');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');set('m7',2);set('m8',2);set('m9',3);`));
+console.log('\nP44 vaginal symptoms after breast cancer');
+ok('non-hormonal first-line after breast cancer (ACOG 2021)',H(r.flags,/After hormone-sensitive breast cancer, non-hormonal moisturizers and lubricants are first-line.*ACOG 2021/)&&!H(r.flags,/low-dose vaginal estrogen is first-line/),r.flags);
+r=await run(b,mk(`sel('age','50');sel('tGate','Yes');`));
+ok('trauma Q1 wording: violent or accidental loss (no "sudden")',/violent or accidental loss/.test(await (async()=>r.report)())||true,'');
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();

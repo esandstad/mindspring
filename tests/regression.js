@@ -77,8 +77,8 @@ ok('22 meds question names antidepressants',/antidepressants/.test(await p.locat
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',N);await R(p,'cs6',N);await go(p,5);await p.click('input[name=history][value="Self-harm without wanting to die"]');
 ok('23 past self-harm history: red notice',(await live(p)).includes('Safety notice'),await live(p));
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',Y);await R(p,'cs3',N);await R(p,'cs4',N);await R(p,'cs5',N);await R(p,'cs6',N);
-ok('24 active ideation, default "moderate": reach-out notice, no red',JSON.stringify(await live(p))==='["Please reach out soon"]',await live(p));
-await p.evaluate(()=>{CONFIG.redForActiveIdeation=false;safetyLive()});ok('24 setting false (Columbia): amber',(await live(p)).includes('Please share this with your clinician'));
+ok('24 active ideation (C-SSRS item 2) is urgent since v46: red notice',JSON.stringify(await live(p))==='["Safety notice"]',await live(p));
+ok('24 active ideation tells client not to wait for the report',await p.evaluate(()=>/don’t wait for your psychotherapist/.test(document.getElementById('safetyLive').innerText)));
 await p.evaluate(()=>{CONFIG.redForActiveIdeation=true;safetyLive()});ok('24 setting true: red',(await live(p)).includes('Safety notice'));errs.push(...p.errs);
 // v19 additions
 p=await page(b);await p.fill('#f_age','35');await go(p,4);await p.selectOption('#f_stage','No period for 3–11 months');ok('25 baseline age 35, 3+ months: POI prompt',has(await fl(p),/under age 40/));
