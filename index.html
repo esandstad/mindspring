@@ -81,7 +81,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v50',
+  version:'v51',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -168,6 +168,8 @@ const ociSubs=[['Obsessing',[6,12,18]],['Checking',[2,8,14]],['Ordering',[3,9,15
 const guPatterns=['Mostly hard or lumpy, or hard to pass (constipation)','Mostly loose or watery (diarrhea)','Switches between hard and loose','Mostly normal','Not sure'];
 const guFlagOpts=['Blood in the stool, or black, tarry stools','Weight loss I wasn’t trying for','Diarrhea that wakes me up at night','Told I have low iron or anemia','Bloating or a bigger belly on most days','Feeling full quickly, or loss of appetite, on most days','Pelvic or lower belly pain on most days','None'];
 const slOpts=['Loud snoring (louder than talking, or heard through a closed door)','Often tired, fatigued, or sleepy during the day','Someone has seen me stop breathing, choke, or gasp in my sleep','Treated for high blood pressure','Fallen asleep or nearly fallen asleep while driving','None'];
+const htOpts=Array.from({length:25},(_,k)=>{const n=54+k;return Math.floor(n/12)+' ft '+(n%12)+' in'});
+const htIn=v=>{const m=/^(\d) ft (\d+) in$/.exec(v||'');return m?Number(m[1])*12+Number(m[2]):null};
 const slExtra=['Waking up gasping or choking','Morning headaches','Getting up to urinate 2 or more times a night','Sleep that doesn’t refresh me, even with enough time in bed','None'];
 const sedOpts=['Sleeping pills (for example, zolpidem or eszopiclone)','Benzodiazepines (for example, alprazolam, lorazepam, clonazepam, diazepam)','Opioid pain medicines (for example, oxycodone, hydrocodone, tramadol)','Gabapentin or pregabalin','Cannabis or CBD for sleep, pain, or anxiety','None'];
 const V={
@@ -246,7 +248,7 @@ const fields=[
   ['other','checks','Other symptoms',groups.other],
   ['slNote','note','Sleep. A few questions about sleep, which strongly affects mood, energy, and concentration.',null,{tone:'info'}],
   ['slp','checks','Which of these apply to you? (Tick all that apply)',slOpts],
-  ['slHt','number','Your height in inches (for example, 5 ft 4 in = 64)',null,{show:V.slAny,hint:'Used only to estimate body mass index for a sleep-breathing screen. Leave blank if you prefer.'}],
+  ['slHt','select','Your height',htOpts,{show:V.slAny,hint:'Used only to estimate body mass index for a sleep-breathing screen. Skip if you prefer.'}],
   ['slWt','number','Your weight in pounds',null,{show:V.slAny}],
   ['slNeck','select','Neck or collar size',['Under 14 inches (35 cm)','14 inches (35 cm) or more','Not sure'],{show:V.slAny}],
   ['slX','checks','Do any of these happen often? (Tick all that apply)',slExtra,{show:V.slAny}],
@@ -357,7 +359,7 @@ else if(type==='checks')x+='<div class="checks" role="group" aria-labelledby="l_
 else if(type==='select')x+='<select id="f_'+id+'"><option value="">Choose / skip</option>'+opts.map(v=>'<option>'+escapeHtml(v)+'</option>').join('')+'</select>';
 else if(type==='textarea')x+='<textarea id="f_'+id+'"></textarea>';
 else if(type==='check')x+='<label class="checkline"><input id="f_'+id+'" type="checkbox"'+(o&&o.hint?' aria-describedby="h_'+id+'"':'')+'> '+escapeHtml(label)+'</label>'+(o&&o.hint?'<p class="hint" id="h_'+id+'">'+escapeHtml(o.hint)+'</p>':'');
-else x+='<input id="f_'+id+'" type="'+type+'"'+(id==='age'?' min="18" max="110" step="1" inputmode="numeric"':'')+'>';
+else x+='<input id="f_'+id+'" type="'+type+'"'+(id==='age'?' min="18" max="110" step="1" inputmode="numeric"':type==='number'?' inputmode="numeric" step="1"':'')+'>';
 return x+'</div>'}
 
 function render(){
@@ -560,7 +562,7 @@ else if(ps!==null&&ps>=15)F.push(['clinical','PHQ-9 '+ps+' (moderately severe): 
 if(gs!==null&&gs>=15)F.push(['clinical','GAD-7 '+gs+' (severe): consider treatment referral alongside psychotherapy.',false,null,null,3,'GAD-7 severe ('+gs+')'])}
 // Sleep: breathing pattern (women-specific STOP-Bang, Bauters 2020), insomnia (DSM-5 pattern), restless legs, drowsy driving
 {const sl=named('slp'),S1=sl.includes(slOpts[0]),T=sl.includes(slOpts[1]),O=sl.includes(slOpts[2]),Pr=sl.includes(slOpts[3]);
-const ht=Number(state.slHt),wt=Number(state.slWt),bmi=(ht>=48&&ht<=84&&wt>=70&&wt<=600)?Math.round(703*wt/(ht*ht)*10)/10:null;
+const ht=htIn(state.slHt)||0,wt=Number(state.slWt),bmi=(ht>=48&&ht<=84&&wt>=70&&wt<=600)?Math.round(703*wt/(ht*ht)*10)/10:null;
 const ag=validAge()&&Number(state.age)>50,nk=state.slNeck==='14 inches (35 cm) or more';
 const sb=[S1,T,O,Pr,bmi!==null&&bmi>35,ag,nk].filter(Boolean).length;const strong=S1||O||Pr||(bmi!==null&&bmi>35)||nk;
 const ex=named('slX').filter(x=>x!=='None');

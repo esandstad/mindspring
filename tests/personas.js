@@ -280,7 +280,7 @@ const SN="Loud snoring (louder than talking, or heard through a closed door)",TI
 r=await run(b,mk(`sel('age','54');chk('slp',"${TI}");`));
 console.log('\nP45 tired + over 50 only: no sleep-apnea referral (design rule)');
 ok('no sleep-breathing flag from tiredness + age alone',!H(r.flags,/Sleep-breathing pattern/),r.flags);
-r=await run(b,mk(`sel('age','56');chk('slp',"${SN}");chk('slp',"${TI}");read();sel('slHt','64');sel('slWt','215');sel('slNeck','14 inches (35 cm) or more');chk('slX','Morning headaches');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');chk('sedat','Sleeping pills (for example, zolpidem or eszopiclone)');`));
+r=await run(b,mk(`sel('age','56');chk('slp',"${SN}");chk('slp',"${TI}");read();sel('slHt','5 ft 4 in');sel('slWt','215');sel('slNeck','14 inches (35 cm) or more');chk('slX','Morning headaches');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');chk('sedat','Sleeping pills (for example, zolpidem or eszopiclone)');`));
 console.log('\nP46 snoring, BMI 36.9, neck, alcohol, sleeping pills');
 ok('sleep-breathing pattern Tier 3 with women-specific STOP-Bang note',H(r.flags,/^medical: Sleep-breathing pattern \(loud snoring, daytime tiredness, BMI 36\.9, neck 14 in or more, age over 50; also morning headaches\).*Women-specific STOP-Bang 5\/8.*Alcohol and sedatives worsen sleep apnea/),r.flags);
 ok('sedatives + alcohol flag Tier 3',H(r.glance,/^Within 7 days: .*Sedatives \+ alcohol/),r.glance);
