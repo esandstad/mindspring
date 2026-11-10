@@ -87,7 +87,7 @@ await p.click('input[name=hormoneTx][value="GnRH medication (for example, Lupron
 await p.selectOption('#f_mht','Yes');ok('26 current MHT masks period flags',!has(await fl(p),/under age 40/));
 await p.click('input[name=bleed][value="Bleeding after 12 months without a period"]');ok('26 PMB on MHT: withdrawal-bleed sentence',has(await fl(p),/scheduled withdrawal bleeds/));
 await p.selectOption('#f_mht','No');await p.selectOption('#f_injection','Not sure');f=await fl(p);ok('27 injection "Not sure": masked + confirm note',!has(f,/under age 40/)&&has(f,/confirm the date of the last shot/));
-await p.click('input[name=hormoneTx][value="Tamoxifen"]');ok('28 tamoxifen prescriber flag',has(await fl(p),/CYP2D6/));
+await p.click('input[name=hormoneTx][value="Tamoxifen"]');ok('28 tamoxifen prescriber flag',has(await fl(p),/Takes tamoxifen/)&&await p.evaluate(()=>flags().some(f=>/CYP2D6/.test(f[7]||''))));
 await p.click('input[name=hormoneTx][value="Aromatase inhibitor (for example, letrozole or anastrozole)"]');await p.click('input[name=hormoneTx][value="Tamoxifen"]');ok('28 aromatase inhibitor alone: no CYP2D6 flag',!has(await fl(p),/CYP2D6/));
 await p.click('input[name=hormoneTx][value="Hysterectomy (uterus removed), ovaries kept"]');await p.click('input[name=hormoneTx][value="Both ovaries removed"]');
 ok('29 hysterectomy-kept and both-removed are exclusive',await p.evaluate(()=>state.hormoneTx.includes('Both ovaries removed')&&!state.hormoneTx.includes('Hysterectomy (uterus removed), ovaries kept')));errs.push(...p.errs);

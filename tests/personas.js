@@ -2,7 +2,7 @@ const {chromium,devices}=require('playwright');let pass=0,fail=0;
 const ok=(n,c,x='')=>{c?pass++:fail++;console.log((c?'PASS ':'FAIL ')+n+(c?'':'  >> '+JSON.stringify(x).slice(0,400)))};
 async function run(b,fill){const c=await b.newContext({...devices['iPhone 13'],acceptDownloads:true});const p=await c.newPage();const e=[];p.on('pageerror',x=>e.push(x.message));
 await p.goto('file://'+process.argv[2]);await p.evaluate(fill);
-const r=await p.evaluate(()=>{read();step=fields.length-1;show();const S=summary();return {flags:S.flags.map(f=>f[0]+(f[2]?'(private)':'')+': '+f[1]),S:{ps:S.ps,gs:S.gs,mrs:S.mrs.map(m=>m.score+' '+m.band),aud:S.aud,hits:S.hits},glance:glance(S).map(g=>g.join(': ')),live:[...document.querySelectorAll('#safetyLive strong')].map(x=>x.textContent),report:document.getElementById('report').innerText}});
+const r=await p.evaluate(()=>{read();step=fields.length-1;show();const S=summary();return {flags:S.flags.map(f=>f[0]+(f[2]?'(private)':'')+': '+f[1]+(f[7]?' || '+f[7]:'')),S:{ps:S.ps,gs:S.gs,mrs:S.mrs.map(m=>m.score+' '+m.band),aud:S.aud,hits:S.hits},glance:glance(S).map(g=>g.join(': ')),live:[...document.querySelectorAll('#safetyLive strong')].map(x=>x.textContent),report:document.getElementById('report').innerText}});
 r.errs=e;await c.close();return r}
 const H=(a,re)=>a.some(x=>re.test(x));
 (async()=>{const b=await chromium.launch();
@@ -15,12 +15,12 @@ ok('glance: therapy focus with PHQ split (mood 6, physical 4)',H(r.glance,/Thera
 // P2 — 58, tamoxifen after breast cancer, bleeding after 12 months + spotting. EXPECT: PMB flag; gyn-evaluation flag naming tamoxifen, ranked top; one merged tamoxifen flag; no "tamoxifen without cancer"; no contraception flags.
 r=await run(b,mk(`sel('age','58');for(let i=0;i<9;i++)set('p'+i,i<3?1:0);sel('stage','No period for 12+ months');chk('bleed','Bleeding after 12 months without a period');chk('bleed','Bleeding between periods');chk('hormoneTx','Tamoxifen');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');sel('mht','No');`));
 console.log('\nP2 58-year-old on tamoxifen with bleeding');const med=r.flags.filter(f=>f.startsWith('medical'));
-ok('PMB flag present',H(r.flags,/always needs prompt medical evaluation/),r.flags);ok('gyn evaluation flag names tamoxifen',H(r.flags,/while taking tamoxifen: prompt gynecologic evaluation/),r.flags);
-ok('bleeding flags ranked first among medical',/prompt gynecologic evaluation/.test(med[0]+med[1])&&/always needs prompt/.test(med[0]+med[1]),med);ok('exactly one tamoxifen prescriber flag',r.flags.filter(f=>/CYP2D6/.test(f)).length===1&&!H(r.flags,/affect hormones: Tamoxifen/),r.flags);
+ok('PMB flag present',H(r.flags,/always needs prompt medical evaluation/),r.flags);ok('gyn evaluation flag names tamoxifen',H(r.flags,/while taking tamoxifen: needs prompt medical evaluation.*Gynecologic evaluation/),r.flags);
+ok('bleeding flags ranked first among medical',/while taking tamoxifen: needs prompt medical evaluation/.test(med[0]+med[1])&&/always needs prompt/.test(med[0]+med[1]),med);ok('exactly one tamoxifen prescriber flag',r.flags.filter(f=>/CYP2D6/.test(f)).length===1&&!H(r.flags,/affect hormones: Tamoxifen/),r.flags);
 ok('no "tamoxifen without cancer"',!H(r.flags,/without a cancer history/));ok('no contraception flags',!H(r.flags,/contracepti/),r.flags);
 // P3 — 36, no period 4 months, no contraception. EXPECT: under-40 POI prompt saying it's not a diagnosis; no early-menopause; no masking note.
 r=await run(b,mk(`sel('age','36');sel('stage','No period for 3–11 months');sel('pregPossible','No');sel('mht','No');sel('injection','No');`));
-console.log('\nP3 36-year-old, 4 months without a period');ok('under-40 prompt, not a diagnosis',H(r.flags,/under age 40: please see a medical clinician\. This does not mean you have primary ovarian insufficiency/),r.flags);
+console.log('\nP3 36-year-old, 4 months without a period');ok('under-40 prompt, not a diagnosis',H(r.flags,/under age 40: a physical change that needs medical evaluation\. This does not by itself mean a diagnosis/),r.flags);
 ok('no early-menopause or masking flags',!H(r.flags,/ages 40–44|can’t be used/),r.flags);
 // P4 — item 9 several days, C-SSRS low complete. EXPECT: amber client notice, no red; clinical item-9 flag; glance shows no "Act today".
 r=await run(b,mk(`sel('age','50');for(let i=0;i<8;i++)set('p'+i,1);set('p8',1);read();set('cs1',0);set('cs2',1);set('cs6',1);set('nssi',1);`));
@@ -31,9 +31,9 @@ r=await run(b,mk(`sel('name','e');sel('date','2026-11-08');sel('age','58');[1,1,
 console.log('\nP5 replay of first test report');
 ok('urgent names shortness of breath + clot line',H(r.flags,/^urgent: You reported: shortness of breath\..*blood-clot risk/),r.flags);
 ok('combined symptom flag, ranked first medical',/Several new physical symptoms together \(abnormal bleeding, shortness of breath, weight loss with fever or night sweats, worsening memory or thinking\)/.test(r.flags.filter(f=>f.startsWith('medical'))[0]||''),r.flags.filter(f=>f.startsWith('medical')).slice(0,2));
-ok('gyn evaluation (tamoxifen + bleeding)',H(r.flags,/prompt gynecologic evaluation/));
+ok('gyn evaluation (tamoxifen + bleeding)',H(r.flags,/Gynecologic evaluation/));
 ok('contradictions: 3 methods, contraception at 58, cycles at 58',H(r.flags,/3 hormonal contraceptive methods/)&&H(r.flags,/contraception reported at age 58/)&&H(r.flags,/ongoing cycles reported at age 58/),r.flags.filter(f=>/Check/.test(f)));
-ok('estrogen wording on pill/patch/ring; progestin-only separate',H(r.flags,/A pill, patch, or ring may contain estrogen.*Progestin-only methods \(hormonal iud, contraceptive injection\)/),r.flags.filter(f=>/estrogen/.test(f)));
+ok('estrogen wording on pill/patch/ring; progestin-only separate',H(r.flags,/Estrogen-containing methods are generally avoided.*Progestin-only methods \(hormonal iud, contraceptive injection\)/),r.flags.filter(f=>/estrogen/.test(f)));
 ok('tamoxifen without cancer: ask why',H(r.flags,/without a cancer history/));ok('LMP same-day flag',H(r.flags,/same as the assessment date/));
 ok('forced-sex flag grouped as private',H(r.flags,/^clinical\(private\): Forced sexual activity/),r.flags.filter(f=>/private/.test(f)));
 ok('E-HITS bar label "item endorsed"',/6 \/ 25 · Below total cut-off; item endorsed/.test(r.report));ok('report groups "Discuss privately"',/Discuss privately at next session/.test(r.report));
@@ -47,10 +47,10 @@ ok('glance block',H(r.glance,/^Today: 1 item: Chest pain/)&&H(r.glance,/\[privat
 r=await run(b,mk(`sel('name','test 4');sel('age','45');[1,1,1,1,3,2,2,3,0].forEach((v,i)=>set('p'+i,v));[1,1,1,3,2,3,2].forEach((v,i)=>set('g'+i,v));[2,1,3,2,3,2,2,1,3,2,2].forEach((v,i)=>set('m'+i,v));sel('stage','Cycles vary by 7+ days');sel('cog','Yes');chk('bleed','Bleeding between periods');chk('other','Heat intolerance, tremor, or unexplained weight loss');chk('other','Loud snoring or witnessed breathing pauses');chk('hormoneTx','None');chk('contraNow','Pill, patch, or ring');sel('injection','Yes');sel('mht','Yes');chk('history','Prior depression');sel('audit1','2–4 times a month');sel('audit2','1 or 2');sel('audit3','Less than monthly');sel('hitsGate','Answer now');[0,0,1,1,1].forEach((v,i)=>set('h'+i,v));`));
 console.log('\nP6 replay of test 4');const med6=r.flags.filter(f=>f.startsWith('medical'));
 ok('scores match report (14, 13, 23, 3, 8)',r.S.ps===14&&r.S.gs===13&&r.S.mrs[0].startsWith('23')&&r.S.aud===3&&r.S.hits===8,r.S);
-ok('thyroid pattern flag names arousal items',H(r.flags,/together with trouble relaxing, restlessness, irritability, slowed or restless movement, appetite change\. An overactive thyroid/),med6);
+ok('thyroid pattern flag names arousal items',H(r.flags,/together with trouble relaxing, restlessness, irritability, slowed or restless movement, appetite change: this physical pattern can look like anxiety/),med6);
 ok('no plain thyroid flag as well',!H(r.flags,/whether thyroid testing is needed/));
 ok('MHT + contraception flag, mentions bleeding',H(r.flags,/Hormone therapy and hormonal contraception both reported.*Bleeding while on hormones/),med6);
-ok('top medical flags lead',/Hormone therapy and hormonal contraception|overactive thyroid/.test(med6[0])&&/Hormone therapy and hormonal contraception|overactive thyroid/.test(med6[1]),med6.slice(0,3));
+ok('top medical flags lead',/Hormone therapy and hormonal contraception|can look like anxiety/.test(med6[0])&&/Hormone therapy and hormonal contraception|can look like anxiety/.test(med6[1]),med6.slice(0,3));
 ok('hot flushes not listed twice',!/Hot flushes: moderate/.test(r.report)&&/hot flushes, sweating/.test(r.report));
 ok('E-HITS positive grouped private',H(r.flags,/^clinical\(private\): Relationship safety screen \(E-HITS\) positive: 8\/25/));ok('no errors',!r.errs.length,r.errs);
 
@@ -62,7 +62,7 @@ ok('stage: early transition',H(r.glance,/^Likely stage: Early menopause transiti
 ok('risk-window flag',H(r.flags,/Perimenopause with a history of prior depression: the group at highest risk/));
 ok('ADHD worsening flag',H(r.flags,/Diagnosed ADHD with worsening concentration or memory/));
 ok('stimulant flag mentions thyroid-pattern flag',H(r.flags,/Takes ADHD medication.*and the thyroid-pattern flag/));
-ok('thyroid flag mentions stimulant',H(r.flags,/overactive thyroid.*ADHD stimulant medication can cause the same pattern/));ok('no errors',!r.errs.length,r.errs);
+ok('thyroid flag mentions stimulant',H(r.flags,/can look like anxiety.*ADHD stimulant medication can cause the same pattern/));ok('no errors',!r.errs.length,r.errs);
 // P8 — 53, postmenopause, childhood attention problems never diagnosed, prior depression.
 // EXPECT: stage "Postmenopause"; no risk-window flag (not perimenopause); evaluation flag; ADHD dx and childhood options exclusive.
 r=await run(b,mk(`sel('age','53');sel('stage','No period for 12+ months');chk('history','Prior depression');chk('history','ADHD (diagnosed)');document.querySelector('input[name="history"][value="Attention problems since childhood, never diagnosed"]').click();sel('mht','No');sel('injection','No');`));
@@ -113,9 +113,9 @@ r=await run(b,mk(`sel('age','58');for(let i=0;i<9;i++)set('p'+i,1);set('phqImpac
 console.log('\nP20 postmenopausal case with conflicting answers (58, stopped at 40-44, bleeding after sex)');
 ok('stage: postmenopause, early menopause',H(r.glance,/^Likely stage: Postmenopause: periods stopped for good between ages 40 and 44 \(early menopause\) \(answers conflict/),r.glance);
 ok('stage conflict flag',H(r.flags,/^medical: Check answers on menopause stage: periods reported to have stopped for good before 45, but also menstrual pattern/),r.flags);
-ok('postmenopausal bleeding flag',H(r.flags,/^medical: Postmenopausal bleeding \(bleeding after sex\).*within about 2 weeks/),r.flags);
+ok('postmenopausal bleeding flag',H(r.flags,/^medical: Bleeding \(bleeding after sex\) although the answers place the client after menopause.*within about 2 weeks.*1–14%/),r.flags);
 ok('no pregnancy test flag; check-answers note instead',!H(r.flags,/consider a pregnancy test/)&&H(r.flags,/pregnancy marked possible or unsure, but the answers indicate postmenopause/),r.flags);
-ok('early menopause text without pregnancy',H(r.flags,/early menopause, now age 58/)&&!H(r.flags,/pregnancy and other causes/),r.flags);
+ok('early menopause text without pregnancy',H(r.flags,/Early menopause, now age 58/)&&!H(r.flags,/pregnancy and other causes/),r.flags);
 ok('no perimenopause-only flags',!H(r.flags,/Perimenopause with a history|Trauma symptoms during perimenopause/),r.flags);
 ok('onset-before-cycle-changes note',H(r.flags,/began before cycle changes/),r.flags);
 ok('straight-line PHQ flag',H(r.flags,/All nine PHQ-9 items answered the same \(several days\).*just below/),r.flags);
@@ -123,16 +123,16 @@ ok('GAD vs MRS mismatch',H(r.flags,/GAD-7 0 \(minimal\) but MRS irritability mod
 ok('MRS psych vs PHQ mismatch',H(r.flags,/MRS psychological 8\/16 \(severe\) but PHQ-9 9/),r.flags);
 ok('GSM flag after bleeding evaluated',H(r.flags,/genitourinary syndrome of menopause.*after the reported bleeding has been evaluated/),r.flags);
 ok('private bleeding + partner flag',H(r.flags,/^clinical\(private\): Bleeding after sex together with a preference/),r.flags);
-ok('glance tiers: 1 business day lists item 9 + PMB',H(r.glance,/^Within 1 business day: \d+ items: Suicide-risk follow-up \(PHQ-9 item 9 positive\); Postmenopausal bleeding; Stage answers conflict/),r.glance);
+ok('glance tiers: 1 business day lists item 9 + PMB',H(r.glance,/^Within 1 business day: \d+ items: Suicide-risk follow-up \(PHQ-9 item 9 positive\); Bleeding after menopause; Stage answers conflict/),r.glance);
 ok('glance: no Today row',!H(r.glance,/^Today/),r.glance);
-ok('glance: within 7 days includes palpitations + GSM',H(r.glance,/^Within 7 days: .*palpitations.*Genitourinary/i),r.glance);
-ok('report shows tier labels and definitions',/Within 1 business day · For medical clinician/.test(r.report)&&/How stage is decided \(STRAW\+10\)/.test(r.report),r.report.slice(0,300));
+ok('glance: within 7 days includes palpitations + GSM',H(r.glance,/^Within 7 days: .*palpitations.*Vaginal and urinary/i),r.glance);
+ok('report shows tier labels and definitions',/Within 1 business day · Medical \(hardware\) signal: refer to physician/.test(r.report)&&/How stage is decided \(STRAW\+10\)/.test(r.report),r.report.slice(0,300));
 ok('no errors',!r.errs.length,r.errs);
 // P21 — stage from last-period date.
 r=await run(b,mk(`sel('age','51');sel('stage','No period for 3–11 months');el('f_date').value='2026-11-09';el('f_last').value='2025-09-01';read();chk('bleed','Bleeding between periods');`));
 console.log('\nP21 51, says 3-11 months but last-period date 14 months ago');
 ok('stage from date: postmenopause',H(r.glance,/^Likely stage: Postmenopause: 12\+ months without a period \(from last-period date/),r.glance);
-ok('bleeding treated as postmenopausal',H(r.flags,/^medical: Postmenopausal bleeding/),r.flags);
+ok('bleeding treated as postmenopausal',H(r.flags,/^medical: Bleeding \(bleeding between periods\) although the answers place the client after menopause/),r.flags);
 r=await run(b,mk(`sel('age','49');sel('stage','Cycles vary by 7+ days');el('f_date').value='2026-11-09';el('f_last').value='2026-07-01';read();`));
 console.log('\nP22 49, cycles vary but last period 131 days ago');
 ok('stage: late transition from date',H(r.glance,/^Likely stage: Late menopause transition \(perimenopause\): last period 131 days ago/),r.glance);
@@ -194,9 +194,9 @@ ok('no gut flags',!H(r.flags,/IBS|bowel|Bowel|ovarian|Colorectal/),r.flags);
 // P32 — 58, new symptoms within year, bloating + early fullness most days, bladder moderate, mixed stools, weekly pain changing with BM, never screened, palpitations, ACE yes.
 r=await run(b,mk(`sel('age','58');set('m8',2);sel('aceQ','Yes');chk('cardio','New or unexplained palpitations');sel('guGate','Yes');set('guNew',0);sel('guPattern','Switches between hard and loose');set('guPain',0);read();set('guPainBM',0);chk('guFlags','Bloating or a bigger belly on most days');chk('guFlags','Feeling full quickly, or loss of appetite, on most days');sel('guScreen','Never had one');set('guAvoid',1);`));
 console.log('\nP32 58, new bloating + fullness, mixed IBS pattern');
-ok('alarm: new after 50',H(r.flags,/^medical: Bowel alarm features \(new bowel symptoms after age 50\)/),r.flags);
-ok('ovarian pattern tier 2 with bladder',H(r.flags,/early ovarian cancer symptoms \(bloating or a bigger belly; early fullness or loss of appetite; plus bladder symptoms rated moderate\), starting within the past year/)&&H(r.glance,/^Within 1 business day: .*Possible ovarian-cancer symptom pattern/),r.glance);
-ok('screening due at 58',H(r.flags,/Colorectal cancer screening never done at age 58/),r.flags);
+ok('alarm: new after 50',H(r.flags,/^medical: Bowel warning signs \(new bowel symptoms after age 50\)/),r.flags);
+ok('ovarian pattern tier 2 with bladder',H(r.flags,/Symptoms on most days \(bloating or a bigger belly; early fullness or loss of appetite; plus bladder symptoms rated moderate\), starting within the past year.*early ovarian cancer symptoms/)&&H(r.glance,/^Within 1 business day: .*New bloating, fullness, or pelvic pain/),r.glance);
+ok('screening due at 58',H(r.flags,/Colon cancer screening never done at age 58.*from age 45/),r.flags);
 ok('thyroid for mixed + palpitations',H(r.flags,/Diarrhea together with palpitations/),r.flags);
 ok('IBS pattern, mixed type, evaluation first, ACE note',H(r.flags,/Pattern consistent with IBS \(mixed type\).*Medical evaluation of the flags above comes first.*Childhood adversity/),r.flags);
 ok('avoidance note',H(r.flags,/Avoids going out.*\(sometimes\)/),r.flags);
@@ -205,7 +205,7 @@ ok('no errors',!r.errs.length,r.errs);
 // P33 — 35, long-standing diarrhea, blood in stool, leakage, laxatives in eating module.
 r=await run(b,mk(`sel('age','35');sel('guGate','Yes');set('guNew',1);sel('guPattern','Mostly loose or watery (diarrhea)');set('guPain',1);chk('guFlags','Blood in the stool, or black, tarry stools');chk('guPelvic','Leaking stool, or not reaching the toilet in time');sel('edGate','Yes');chk('edComp','Used laxatives, water pills (diuretics), or diet pills');`));
 console.log('\nP33 35, diarrhea with blood, leakage, laxatives');
-ok('blood alarm tier 2',H(r.glance,/^Within 1 business day: .*Bowel alarm features/)&&H(r.flags,/Bowel alarm features \(blood in stool\):.*prompt review/),r.flags);
+ok('blood alarm tier 2',H(r.glance,/^Within 1 business day: .*Bowel warning signs/)&&H(r.flags,/Bowel warning signs \(blood in stool\):.*prompt review/),r.flags);
 ok('no screening question/flag under 45',!H(r.flags,/Colorectal/)&&!r.report.includes('colon cancer screening'),r.flags);
 ok('no ovarian flag',!H(r.flags,/ovarian/),r.flags);
 ok('pelvic floor leakage',H(r.flags,/Pelvic-floor bowel symptoms \(leaking stool.*Stool leakage is often under-reported/),r.flags);
@@ -214,7 +214,7 @@ ok('not IBS pattern, gut symptoms note',H(r.flags,/^clinical: Stomach or bowel s
 // P34 — 40, constipation, long-standing, no flags, screened N/A.
 r=await run(b,mk(`sel('age','40');sel('guGate','Yes');set('guNew',1);sel('guPattern','Mostly hard or lumpy, or hard to pass (constipation)');set('guPain',0);read();set('guPainBM',0);chk('guFlags','None');`));
 console.log('\nP34 40, long-standing constipation IBS pattern');
-ok('constipation medical review',H(r.flags,/Mostly constipation: ask the physician/),r.flags);
+ok('constipation medical review',H(r.flags,/Mostly constipation: include in the physician referral.*thyroid/),r.flags);
 ok('IBS constipation type, needs confirmation',H(r.flags,/Pattern consistent with IBS \(constipation type\).*IBS needs medical confirmation/),r.flags);
 ok('no alarm',!H(r.flags,/alarm/),r.flags);
 
@@ -233,7 +233,7 @@ console.log('\nP36 None exclusive');ok('None clears others, and others clear Non
 // P37 — 50, severe hot flushes, no MHT, AUDIT-C 6 with PHQ 11: hot-flush flag tier 3; alcohol raised to tier 3.
 r=await run(b,mk(`sel('age','50');[2,1,2,2,1,1,1,1,0].forEach((v,i)=>set('p'+i,v));[4,1,3,1,2,1,2,1,0,1,1].forEach((v,i)=>set('m'+i,v));sel('mht','No');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');`));
 console.log('\nP37 severe hot flushes untreated + alcohol with depression');
-ok('hot-flush treatment flag',H(r.flags,/^medical: Hot flushes and sweating rated very severe with no current hormone therapy.*Hormone therapy is the most effective.*clinical hypnosis/),r.flags);
+ok('hot-flush treatment flag',H(r.flags,/^medical: Hot flushes and sweating rated very severe with no current hormone therapy.*clinical hypnosis.*Hormone therapy is the most effective/),r.flags);
 ok('alcohol raised to 7 days',H(r.glance,/^Within 7 days: .*AUDIT-C \d+\/12 with depression \(PHQ-9 11\) and severe sleep problems/),r.glance);
 // P38 — on MHT: no hot-flush flag; breast cancer + tamoxifen: non-hormonal wording; alcohol frequency only: stays next session.
 r=await run(b,mk(`sel('age','56');[0,0,1,0,0,0,0,0,0].forEach((v,i)=>set('p'+i,v));set('m0',3);chk('hormoneTx','Tamoxifen');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');sel('mht','No');sel('audit1','4 or more times a week');sel('audit2','1 or 2');sel('audit3','Never');`));
@@ -242,4 +242,13 @@ ok('non-hormonal wording with tamoxifen caution',H(r.flags,/hormone therapy is u
 ok('frequency-only alcohol not raised',H(r.glance,/^Next session: .*AUDIT-C/)&&!H(r.flags,/Raised priority/),r.glance);
 r=await run(b,mk(`sel('age','52');set('m0',4);sel('mht','Yes');`));
 ok('no hot-flush flag on MHT',!H(r.flags,/Hot flushes and sweating rated/),r.flags);
+
+// P39 — hardware line: physical pattern vs none.
+r=await run(b,mk(`sel('age','48');[2,2,1,1,1,2,1,0,0].forEach((v,i)=>set('p'+i,v));chk('cardio','None');chk('other','None');chk('bleed','None');`));
+console.log('\nP39 hardware check');
+ok('no physical signals line',H(r.glance,/^Medical \(hardware\) check: No physical warning signals/),r.glance);
+r=await run(b,mk(`sel('age','56');chk('cardio','New or unexplained palpitations');sel('cog','Yes');`));
+ok('physical contribution line lists signals',H(r.glance,/^Medical \(hardware\) check: Likely physical contribution, 2 signals: Palpitations; Worsening memory or thinking\. Refer to physician; this is more than anxiety or depression alone\./),r.glance);
+ok('physician note section present',/For the physician \(optional\)/.test(r.report)&&/Palpitations: Evaluate palpitations/.test(r.report),'');
+ok('no diagnosis names in medical pattern text',!H(r.flags.map(f=>f.split(' || ')[0]).filter(f=>/^medical/.test(f)),/thyroid|GSM|genitourinary syndrome|ovarian cancer|endometrial/i),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();

@@ -32,7 +32,7 @@ const T=fl.map(f=>f[1]).join('\n');
 if(st.post&&/consider a pregnancy test/.test(T))bad('pregnancy test after menopause',st.text);
 if(age>=55&&/consider a pregnancy test/.test(T))bad('pregnancy test at 55+',age);
 if(!['early','late'].includes(st.key)&&/Perimenopause with a history|during perimenopause/.test(T))bad('peri flag outside peri',st.key+' | '+(T.match(/.*perimenopause.*/i)||[''])[0]);
-if(st.key==='post'&&has('bleed','Bleeding after 12 months without a period')===false&&named('bleed').length&&!/Postmenopausal bleeding|gynecologic evaluation/.test(T))bad('bleeding in postmenopause not flagged',named('bleed').join(';'));
+if(st.key==='post'&&has('bleed','Bleeding after 12 months without a period')===false&&named('bleed').length&&!/after menopause|prompt medical evaluation/.test(T))bad('bleeding in postmenopause not flagged',named('bleed').join(';'));
 if(/Late menopause transition/.test(st.text)&&/Postmenopause/.test(st.text))bad('stage text mixes',st.text);
 // 5 score ranges
 const chk=(n,v,lo,hi)=>{if(v!==null&&v!==undefined&&(v<lo||v>hi||Number.isNaN(v)))bad('score out of range',n+'='+v)};chk('PHQ',S.ps,0,27);chk('GAD',S.gs,0,21);
@@ -40,12 +40,14 @@ S.mrs.forEach(m=>chk('MRS',m.score,0,44));const O=ociScore();if(O&&O.total!==nul
 // 6 C-SSRS only when item 9 positive
 if(!V.p8pos()&&/C-SSRS/.test(T))bad('C-SSRS flag without item 9',T.match(/.*C-SSRS.*/)[0]);
 // 7 age-gated rules
-if(age<45&&/Colorectal cancer screening/.test(T))bad('colon screening under 45',age);
+if(age<45&&/Colon cancer screening/.test(T))bad('colon screening under 45',age);
 if(age<50&&/after age 50/.test(T))bad('after-50 rule under 50',age);
 if(age>=45&&/before age 40.*pregnancy and hormonal contraception need to be ruled out/.test(T))bad('POI pregnancy text at 45+',age);
 for(const {it} of allItems){if(it[1]==='checks'&&Array.isArray(state[it[0]])&&state[it[0]].includes('None')&&state[it[0]].length>1)bad('None ticked with others',it[0])}
 if(fl.some(f=>f[0]==='urgent'&&/^Thoughts of death/.test(f[1]))&&fl.some(f=>f[5]===2&&/^(C-SSRS|PHQ-9 item 9 positive|Client prefers to discuss suicide)/.test(f[1])))bad('suicide items split across tiers','');
 if(fl.some(f=>/^Thoughts of death/.test(f[1])&&/screener not completed/.test(f[6]))&&cssrsLevel(true)&&cssrsLevel(true).complete)bad('wrong urgent reason label','');
+{const hwRow=G.find(g=>g[0]==='Medical (hardware) check');const nMed=fl.filter(f=>f[0]==='medical'||(f[0]==='urgent'&&/^You reported: /.test(f[1]))).length;if(!hwRow)bad('hardware row missing','');else if(nMed&&!hwRow[1].includes(nMed+' signal'))bad('hardware count mismatch',hwRow[1]+' vs '+nMed);else if(!nMed&&!/^No physical/.test(hwRow[1]))bad('hardware says likely with no signals',hwRow[1])}
+if(fl.some(f=>f[0]==='medical'&&/thyroid|GSM|genitourinary syndrome|ovarian cancer|endometrial cancer/i.test(f[1])))bad('diagnosis named in medical pattern text',fl.find(f=>f[0]==='medical'&&/thyroid|GSM|genitourinary syndrome|ovarian cancer|endometrial cancer/i.test(f[1]))[1]);
 // 8 duplicates & junk text
 const seen=new Set();fl.forEach(f=>{if(seen.has(f[1]))bad('duplicate flag',f[1]);seen.add(f[1])});
 const rep=document.getElementById('report').innerText;
