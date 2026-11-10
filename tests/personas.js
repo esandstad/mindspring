@@ -238,7 +238,7 @@ ok('alcohol raised to 7 days',H(r.glance,/^Within 7 days: .*AUDIT-C \d+\/12 with
 // P38 — on MHT: no hot-flush flag; breast cancer + tamoxifen: non-hormonal wording; alcohol frequency only: stays next session.
 r=await run(b,mk(`sel('age','56');[0,0,1,0,0,0,0,0,0].forEach((v,i)=>set('p'+i,v));set('m0',3);chk('hormoneTx','Tamoxifen');chk('hormoneTx','Breast, endometrial, or other hormone-sensitive cancer');sel('mht','No');sel('audit1','4 or more times a week');sel('audit2','1 or 2');sel('audit3','Never');`));
 console.log('\nP38 cancer history + tamoxifen, frequency-only drinking');
-ok('non-hormonal wording with tamoxifen caution',H(r.flags,/hormone therapy is usually avoided.*avoid paroxetine and fluoxetine/),r.flags);
+ok('non-hormonal wording with tamoxifen caution',H(r.flags,/hormone therapy is usually avoided.*avoid paroxetine, fluoxetine, and bupropion.*venlafaxine and gabapentin are preferred/),r.flags);
 ok('frequency-only alcohol not raised',H(r.glance,/^Next session: .*AUDIT-C/)&&!H(r.flags,/Raised priority/),r.glance);
 r=await run(b,mk(`sel('age','52');set('m0',4);sel('mht','Yes');`));
 ok('no hot-flush flag on MHT',!H(r.flags,/Hot flushes and sweating rated/),r.flags);
@@ -289,13 +289,27 @@ r=await run(b,mk(`sel('age','49');set('m2',3);sel('slNights','5–7');read();sel
 console.log('\nP47 insomnia pattern + observed apneas + item 9');
 ok('insomnia pattern Tier 3, evaluate breathing before sleep restriction',H(r.flags,/fits the frequency and duration criteria for insomnia disorder\. CBT for insomnia \(CBT-I\) is first-line; have the sleep-breathing pattern evaluated before using sleep restriction/),r.flags);
 ok('insomnia + item 9 grouped with suicide follow-up',H(r.glance,/Insomnia \+ suicide-risk follow-up/),r.glance);
-r=await run(b,mk(`sel('age','45');chk('slp','Fallen asleep or nearly fallen asleep while driving');chk('slp','An urge to move my legs in the evening or at night that eases when I move');`));
+r=await run(b,mk(`sel('age','45');chk('slp','Fallen asleep or nearly fallen asleep while driving');set('rlsGate',1);chk('rlsFit','It comes on while sitting or lying down');chk('rlsFit','It eases while walking or moving');chk('rlsFit','It is worse in the evening or at night');set('rlsMimic',1);sel('rlsFreq','4 or more nights');set('rlsSleep',0);sel('rlsMed','No');chk('bleed','Heavy or prolonged bleeding');`));
 console.log('\nP48 drowsy driving + restless legs');
 ok('drowsy driving Tier 2',H(r.glance,/^Within 1 business day: .*Drowsy driving/),r.glance);
-ok('restless legs with SSRI/iron physician note',H(r.flags,/Urge to move the legs.*ferritin.*SSRIs and SNRIs/),r.flags);
+ok('restless legs pattern with pharmacist-level physician note',H(r.flags,/^medical: An evening or night-time urge to move the legs.*4 or more nights a week.*ferritin ≤75 ng\/mL.*heavy bleeding.*doxylamine.*highest risk with mirtazapine.*do not automatically stop.*gabapentinoid/),r.flags);
 r=await run(b,mk(`sel('age','50');[3,3,2,3,2,3,2,2,0].forEach((v,i)=>set('p'+i,v));[3,3,2,2,2,2,1].forEach((v,i)=>set('g'+i,v));`));
 console.log('\nP49 severe scores');
 ok('PHQ-9 20 -> Tier 2, GAD-7 15 -> Tier 3',H(r.glance,/^Within 1 business day: .*PHQ-9 severe \(20\)/)&&H(r.glance,/^Within 7 days: .*GAD-7 severe \(15\)/),r.glance);
 r=await run(b,mk(`sel('age','50');[2,2,2,2,2,2,2,1,0].forEach((v,i)=>set('p'+i,v));`));
 ok('PHQ-9 15 -> Tier 3 with bipolar screen note',H(r.flags,/PHQ-9 15 \(moderately severe\).*screen for bipolar disorder/)&&H(r.glance,/^Within 7 days: .*PHQ-9 moderately severe/),r.flags);
+
+// P51-P54 — v50 restless legs logic and pharmacist notes.
+r=await run(b,mk(`sel('age','50');set('rlsGate',1);chk('rlsFit','It comes on while sitting or lying down');chk('rlsFit','It eases while walking or moving');chk('rlsFit','It is worse in the evening or at night');set('rlsMimic',0);`));
+console.log('\nP51 cramp mimic');
+ok('mimic -> not a restless-legs referral, ask in session',H(r.flags,/does not fully fit a restless-legs pattern \(mainly cramps/)&&!H(r.flags,/^medical: An evening/),r.flags);
+r=await run(b,mk(`sel('age','47');[1,1,1,1,0,1,1,0,1].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',1);set('cs6',1);set('nssi',1);set('rlsGate',1);chk('rlsFit','It comes on while sitting or lying down');chk('rlsFit','It eases while walking or moving');chk('rlsFit','It is worse in the evening or at night');set('rlsMimic',1);sel('rlsFreq','2–3 nights');sel('rlsMed','Yes');`));
+console.log('\nP52 restlessness after medicine change + item 9');
+ok('prescriber contact flag at Tier 2',H(r.glance,/^Within 1 business day: .*Restlessness after medicine change \+ suicide risk/),r.glance);
+r=await run(b,mk(`sel('age','52');[1,1,1,1,1,1,1,1,0].forEach((v,i)=>set('p'+i,v));[1,1,1,1,1,1,1].forEach((v,i)=>set('g'+i,v));set('m2',2);sel('slNights','5–7');chk('sedat','Opioid pain medicines (for example, oxycodone, hydrocodone, tramadol)');chk('sedat','Gabapentin or pregabalin');`));
+console.log('\nP53 opioid + gabapentinoid');
+ok('FDA combination warning flag',H(r.flags,/Opioid pain medicine together with gabapentin or pregabalin: this combination carries FDA warnings/),r.flags);
+r=await run(b,mk(`sel('age','51');set('m0',3);sel('mht','No');`));
+console.log('\nP54 hot flush note pharmacology');
+ok('fezolinetant liver monitoring + elinzanetant + paroxetine 7.5 + progestogen',H(r.flags,/with a uterus, estrogen needs a progestogen.*paroxetine \(7\.5 mg.*boxed warning for liver injury.*monthly for 3 months.*Elinzanetant/),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();
