@@ -44,7 +44,7 @@ ok('PHQ split 4 / 8 + item 8 prompt',/mood and self-worth items \(1, 2, 6, 9\) 4
 ok('glance block',H(r.glance,/^Today: \d+ items?: Chest pain/)&&H(r.glance,/\[private\]/)&&H(r.glance,/^Therapy focus/),r.glance);ok('no errors',!r.errs.length,r.errs);
 
 // P6 — replay of "test 4" (45, perimenopause). EXPECT: thyroid-pattern flag naming arousal items, ranked top; MHT+contraception flag mentioning bleeding; hot flushes not listed twice.
-r=await run(b,mk(`sel('name','test 4');sel('age','45');[1,1,1,1,3,2,2,3,0].forEach((v,i)=>set('p'+i,v));[1,1,1,3,2,3,2].forEach((v,i)=>set('g'+i,v));[2,1,3,2,3,2,2,1,3,2,2].forEach((v,i)=>set('m'+i,v));sel('stage','Cycles vary by 7+ days');sel('cog','Yes');chk('bleed','Bleeding between periods');chk('other','Heat intolerance, tremor, or unexplained weight loss');chk('other','Loud snoring or witnessed breathing pauses');chk('hormoneTx','None');chk('contraNow','Pill, patch, or ring');sel('injection','Yes');sel('mht','Yes');chk('history','Prior depression');sel('audit1','2–4 times a month');sel('audit2','1 or 2');sel('audit3','Less than monthly');sel('hitsGate','Answer now');[0,0,1,1,1].forEach((v,i)=>set('h'+i,v));`));
+r=await run(b,mk(`sel('name','test 4');sel('age','45');[1,1,1,1,3,2,2,3,0].forEach((v,i)=>set('p'+i,v));[1,1,1,3,2,3,2].forEach((v,i)=>set('g'+i,v));[2,1,3,2,3,2,2,1,3,2,2].forEach((v,i)=>set('m'+i,v));sel('stage','Cycles vary by 7+ days');sel('cog','Yes');chk('bleed','Bleeding between periods');chk('other','Heat intolerance, tremor, or unexplained weight loss');chk('slp','Loud snoring (louder than talking, or heard through a closed door)');chk('hormoneTx','None');chk('contraNow','Pill, patch, or ring');sel('injection','Yes');sel('mht','Yes');chk('history','Prior depression');sel('audit1','2–4 times a month');sel('audit2','1 or 2');sel('audit3','Less than monthly');sel('hitsGate','Answer now');[0,0,1,1,1].forEach((v,i)=>set('h'+i,v));`));
 console.log('\nP6 replay of test 4');const med6=r.flags.filter(f=>f.startsWith('medical'));
 ok('scores match report (14, 13, 23, 3, 8)',r.S.ps===14&&r.S.gs===13&&r.S.mrs[0].startsWith('23')&&r.S.aud===3&&r.S.hits===8,r.S);
 ok('thyroid pattern flag names arousal items',H(r.flags,/together with trouble relaxing, restlessness, irritability, slowed or restless movement, appetite change: this physical pattern can look like anxiety/),med6);
@@ -274,4 +274,28 @@ console.log('\nP44 vaginal symptoms after breast cancer');
 ok('non-hormonal first-line after breast cancer (ACOG 2021)',H(r.flags,/After hormone-sensitive breast cancer, non-hormonal moisturizers and lubricants are first-line.*ACOG 2021/)&&!H(r.flags,/low-dose vaginal estrogen is first-line/),r.flags);
 r=await run(b,mk(`sel('age','50');sel('tGate','Yes');`));
 ok('trauma Q1 wording: violent or accidental loss (no "sudden")',/violent or accidental loss/.test(await (async()=>r.report)())||true,'');
+
+// P45-P50 — v47 sleep, sedatives, severe scores.
+const SN="Loud snoring (louder than talking, or heard through a closed door)",TI="Often tired, fatigued, or sleepy during the day",OB="Someone has seen me stop breathing, choke, or gasp in my sleep";
+r=await run(b,mk(`sel('age','54');chk('slp',"${TI}");`));
+console.log('\nP45 tired + over 50 only: no sleep-apnea referral (design rule)');
+ok('no sleep-breathing flag from tiredness + age alone',!H(r.flags,/Sleep-breathing pattern/),r.flags);
+r=await run(b,mk(`sel('age','56');chk('slp',"${SN}");chk('slp',"${TI}");read();sel('slHt','64');sel('slWt','215');sel('slNeck','14 inches (35 cm) or more');chk('slX','Morning headaches');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');chk('sedat','Sleeping pills (for example, zolpidem or eszopiclone)');`));
+console.log('\nP46 snoring, BMI 36.9, neck, alcohol, sleeping pills');
+ok('sleep-breathing pattern Tier 3 with women-specific STOP-Bang note',H(r.flags,/^medical: Sleep-breathing pattern \(loud snoring, daytime tiredness, BMI 36\.9, neck 14 in or more, age over 50; also morning headaches\).*Women-specific STOP-Bang 5\/8.*Alcohol and sedatives worsen sleep apnea/),r.flags);
+ok('sedatives + alcohol flag Tier 3',H(r.glance,/^Within 7 days: .*Sedatives \+ alcohol/),r.glance);
+ok('no diagnosis name in client pattern text',!H(r.flags.map(f=>f.split(' || ')[0]),/apnea/i),r.flags);
+r=await run(b,mk(`sel('age','49');set('m2',3);sel('slNights','5–7');read();sel('slDur','3 months or more');sel('slDay','Much');chk('slp',"${OB}");chk('slp',"${SN}");[1,1,2,2,1,1,1,0,1].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',1);set('cs6',1);set('nssi',1);`));
+console.log('\nP47 insomnia pattern + observed apneas + item 9');
+ok('insomnia pattern Tier 3, evaluate breathing before sleep restriction',H(r.flags,/fits the frequency and duration criteria for insomnia disorder\. CBT for insomnia \(CBT-I\) is first-line; have the sleep-breathing pattern evaluated before using sleep restriction/),r.flags);
+ok('insomnia + item 9 grouped with suicide follow-up',H(r.glance,/Insomnia \+ suicide-risk follow-up/),r.glance);
+r=await run(b,mk(`sel('age','45');chk('slp','Fallen asleep or nearly fallen asleep while driving');chk('slp','An urge to move my legs in the evening or at night that eases when I move');`));
+console.log('\nP48 drowsy driving + restless legs');
+ok('drowsy driving Tier 2',H(r.glance,/^Within 1 business day: .*Drowsy driving/),r.glance);
+ok('restless legs with SSRI/iron physician note',H(r.flags,/Urge to move the legs.*ferritin.*SSRIs and SNRIs/),r.flags);
+r=await run(b,mk(`sel('age','50');[3,3,2,3,2,3,2,2,0].forEach((v,i)=>set('p'+i,v));[3,3,2,2,2,2,1].forEach((v,i)=>set('g'+i,v));`));
+console.log('\nP49 severe scores');
+ok('PHQ-9 20 -> Tier 2, GAD-7 15 -> Tier 3',H(r.glance,/^Within 1 business day: .*PHQ-9 severe \(20\)/)&&H(r.glance,/^Within 7 days: .*GAD-7 severe \(15\)/),r.glance);
+r=await run(b,mk(`sel('age','50');[2,2,2,2,2,2,2,1,0].forEach((v,i)=>set('p'+i,v));`));
+ok('PHQ-9 15 -> Tier 3 with bipolar screen note',H(r.flags,/PHQ-9 15 \(moderately severe\).*screen for bipolar disorder/)&&H(r.glance,/^Within 7 days: .*PHQ-9 moderately severe/),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();

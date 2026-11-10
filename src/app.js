@@ -3,7 +3,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v46',
+  version:'v47',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -69,7 +69,7 @@ const domains=[['d1','Sleep and recovery','Do poor nights of sleep tend to prece
 const groups={
   bleed:['Heavy or prolonged bleeding','Bleeding between periods','Bleeding after sex','Bleeding after 12 months without a period','None'],
   cardio:['Chest pain, pressure, or tightness','Shortness of breath','Fainting or near-fainting','New or unexplained palpitations','None'],
-  other:['Heat intolerance, tremor, or unexplained weight loss','Unexplained weight loss with fever or drenching night sweats','Episodes of severe headache, sweating, and racing heart','Flushing with diarrhea or wheezing','Milky nipple discharge, or headaches with changes in vision','Loud snoring or witnessed breathing pauses','None'],
+  other:['Heat intolerance, tremor, or unexplained weight loss','Unexplained weight loss with fever or drenching night sweats','Episodes of severe headache, sweating, and racing heart','Flushing with diarrhea or wheezing','Milky nipple discharge, or headaches with changes in vision','None'],
   hormoneTx:['Hysterectomy (uterus removed), ovaries kept','Both ovaries removed','Chemotherapy','Pelvic radiation','Tamoxifen','Aromatase inhibitor (for example, letrozole or anastrozole)','GnRH medication (for example, Lupron)','Breast, endometrial, or other hormone-sensitive cancer','None'],
   history:['Prior depression','PMDD','ADHD (diagnosed)','Attention problems since childhood, never diagnosed','Postpartum depression','Anxiety disorder','Bipolar disorder / mania / hypomania','Prior suicide attempt','Self-harm without wanting to die','Psychiatric hospitalization','Family history of mood disorder or suicide','None'],
   contraNow:['Pill, patch, or ring','Hormonal IUD','Contraceptive implant','None'],
@@ -89,6 +89,9 @@ const ociOpts=['Not at all','A little','Moderately','A lot','Extremely'];
 const ociSubs=[['Obsessing',[6,12,18]],['Checking',[2,8,14]],['Ordering',[3,9,15]],['Washing',[5,11,17]],['Neutralizing',[4,10,16]],['Hoarding',[1,7,13]]];
 const guPatterns=['Mostly hard or lumpy, or hard to pass (constipation)','Mostly loose or watery (diarrhea)','Switches between hard and loose','Mostly normal','Not sure'];
 const guFlagOpts=['Blood in the stool, or black, tarry stools','Weight loss I wasn’t trying for','Diarrhea that wakes me up at night','Told I have low iron or anemia','Bloating or a bigger belly on most days','Feeling full quickly, or loss of appetite, on most days','Pelvic or lower belly pain on most days','None'];
+const slOpts=['Loud snoring (louder than talking, or heard through a closed door)','Often tired, fatigued, or sleepy during the day','Someone has seen me stop breathing, choke, or gasp in my sleep','Treated for high blood pressure','Fallen asleep or nearly fallen asleep while driving','An urge to move my legs in the evening or at night that eases when I move','None'];
+const slExtra=['Waking up gasping or choking','Morning headaches','Getting up to urinate 2 or more times a night','Sleep that doesn’t refresh me, even with enough time in bed','None'];
+const sedOpts=['Sleeping pills (for example, zolpidem or eszopiclone)','Benzodiazepines (for example, alprazolam, lorazepam, clonazepam, diazepam)','Opioid pain medicines (for example, oxycodone, hydrocodone, tramadol)','Gabapentin or pregabalin','Cannabis or CBD for sleep, pain, or anxiety','None'];
 const V={
   p8pos:()=>answered(state.p8)&&Number(state.p8)>0,
   phqAny:()=>phq.some((_,i)=>Number(state['p'+i])>0),
@@ -101,6 +104,8 @@ V.drinks=()=>answered(state.audit1)&&state.audit1!=='Never';
 V.ed=()=>state.edGate==='Yes';
 V.oc=()=>state.ocGate==='Yes';
 V.gu=()=>state.guGate==='Yes';
+V.insom=()=>Number(state.m2)>=2||Number(state.p2)>=2;
+V.slAny=()=>named('slp').some(x=>x!==slOpts[1]&&x!==slOpts[4]&&x!==slOpts[5])||(named('slp').includes(slOpts[1])&&validAge()&&Number(state.age)>50);
 // OCI-R (Foa et al., 2002): 18 items 0-4, total 0-72, cut-off 21; six 3-item subscales (0-12)
 function ociScore(){if(!V.oc())return null;const v=ociItems.map((_,i)=>state['oc'+i]);const n=v.filter(answered).length;if(n<18)return {n,total:null};
 const t=v.reduce((a,x)=>a+Number(x),0);const sub=ociSubs.map(([k,ix])=>[k,ix.reduce((a,i)=>a+Number(v[i-1]),0)]);return {n,total:t,sub}}
@@ -160,6 +165,15 @@ const fields=[
   ['bleed','checks','Bleeding changes',groups.bleed],
   ['cardio','checks','New or unexplained heart or breathing symptoms',groups.cardio],
   ['other','checks','Other symptoms',groups.other],
+  ['slNote','note','Sleep. A few questions about sleep, which strongly affects mood, energy, and concentration.',null,{tone:'info'}],
+  ['slp','checks','Which of these apply to you? (Tick all that apply)',slOpts],
+  ['slHt','number','Your height in inches (for example, 5 ft 4 in = 64)',null,{show:V.slAny,hint:'Used only to estimate body mass index for a sleep-breathing screen. Leave blank if you prefer.'}],
+  ['slWt','number','Your weight in pounds',null,{show:V.slAny}],
+  ['slNeck','select','Neck or collar size',['Under 14 inches (35 cm)','14 inches (35 cm) or more','Not sure'],{show:V.slAny}],
+  ['slX','checks','Do any of these happen often? (Tick all that apply)',slExtra,{show:V.slAny}],
+  ['slNights','select','In the past month, how many nights a week do you have trouble falling asleep, staying asleep, or waking too early and not getting back to sleep?',['0–1','2','3–4','5–7'],{show:V.insom}],
+  ['slDur','select','How long has this been going on?',['Less than 3 months','3 months or more','Not sure'],{show:()=>V.insom()&&['3–4','5–7'].includes(state.slNights)}],
+  ['slDay','select','How much does poor sleep affect your day (energy, mood, concentration, work, or relationships)?',['Not at all','A little','Somewhat','Much','Very much'],{show:V.insom}],
   ['guGate','select','In the past 3 months, have you had ongoing stomach or belly pain, bloating, feeling full quickly, constipation, or diarrhea?',['No','Yes','Prefer to discuss in session']],
   ['guNew','radio','When did these stomach or bowel symptoms start?',['Within the past year','More than a year ago','Not sure'],{show:V.gu}],
   ['guPattern','select','Which best describes your stools most of the time?',guPatterns,{show:V.gu}],
@@ -191,6 +205,7 @@ const fields=[
   ['audit1','select','How often do you have a drink containing alcohol?',audit1],
   ['audit2','select','How many standard drinks containing alcohol do you have on a typical day? (One standard drink is 12 oz of beer, 5 oz of wine, or 1.5 oz of liquor.)',audit2,{show:V.drinks}],
   ['audit3','select','How often do you have 4 or more drinks on one occasion?',audit3,{show:V.drinks}],
+  ['sedat','checks','In the past 3 months, have you taken any of these? (Tick all that apply)',sedOpts],
   ['drug','select','Any non-prescribed drug use or medication misuse in the past year?',['No','Yes','Prefer not to answer']],
   ['pregnancy','checks','Optional, for your medical clinician: pregnancy history',groups.pregnancy]]},
 {section:'Difficult Experiences',intro:'Some experiences can continue to affect us long after they happen. The following questions help us understand whether past experiences may be affecting how you feel today.\n\nYou can skip any question or choose to discuss it during your session instead.\n\nIf you start to feel overwhelmed, pause, breathe slowly, and notice your feet on the floor. The Quick exit button clears this page right away. Answers on this page are never saved on this device.',quickExit:true,items:[
@@ -455,6 +470,33 @@ F.push(M('Hot flushes and sweating rated '+mrsOpts[Number(state.m0)].toLowerCase
 {const pv=Array.from({length:9},(_,i)=>state['p'+i]);if(pv.every(answered)&&new Set(pv).size===1&&Number(pv[0])>0)F.push(['clinical','All nine PHQ-9 items answered the same ('+freq[Number(pv[0])].toLowerCase()+'). This may be accurate or a same-answer pattern; go through the items in session before relying on the total'+(Number(pv[0])===1?', which sits just below the usual cut-off of 10':'')+'.',false,null,null,4,'PHQ-9 same answer on every item'])}
 {const gs=score('g',7),mi=[['irritability',Number(state.m4)],['anxiety',Number(state.m5)]].filter(x=>x[1]>=2);if(gs!==null&&gs<=4&&mi.length)F.push(['clinical','GAD-7 '+gs+' (minimal) but MRS '+mi.map(x=>x[0]+' '+mrsOpts[x[1]].toLowerCase()).join(' and ')+'. Ask directly about anxiety and irritability; menopause-linked irritability may not be captured by the GAD-7.',false,null,null,4,'GAD-7 vs MRS anxiety mismatch'])}
 {const ps=score('p',9),psy=mrsScore(mrsScales[1]);if(ps!==null&&ps<10&&psy.score!==null&&psy.score>=7)F.push(['clinical','MRS psychological '+psy.score+'/16 (severe) but PHQ-9 '+ps+' (below 10). Mood symptoms may be under-reported on the PHQ-9 or concentrated in irritability, anxiety, and exhaustion; clarify in session.',false,null,null,4,'MRS psychological vs PHQ-9 mismatch'])}
+// Severe scores (standalone; v47 per external review)
+{const ps=score('p',9),gs=score('g',7);if(ps!==null&&ps>=20)F.push(['clinical','PHQ-9 '+ps+' (severe range): treatment referral recommended (antidepressant evaluation and psychotherapy are first-line; screen for bipolar disorder before any antidepressant).',false,null,null,2,'PHQ-9 severe ('+ps+')']);
+else if(ps!==null&&ps>=15)F.push(['clinical','PHQ-9 '+ps+' (moderately severe): consider treatment referral alongside psychotherapy; screen for bipolar disorder before any antidepressant.',false,null,null,3,'PHQ-9 moderately severe ('+ps+')']);
+if(gs!==null&&gs>=15)F.push(['clinical','GAD-7 '+gs+' (severe): consider treatment referral alongside psychotherapy.',false,null,null,3,'GAD-7 severe ('+gs+')'])}
+// Sleep: breathing pattern (women-specific STOP-Bang, Bauters 2020), insomnia (DSM-5 pattern), restless legs, drowsy driving
+{const sl=named('slp'),S1=sl.includes(slOpts[0]),T=sl.includes(slOpts[1]),O=sl.includes(slOpts[2]),Pr=sl.includes(slOpts[3]);
+const ht=Number(state.slHt),wt=Number(state.slWt),bmi=(ht>=48&&ht<=84&&wt>=70&&wt<=600)?Math.round(703*wt/(ht*ht)*10)/10:null;
+const ag=validAge()&&Number(state.age)>50,nk=state.slNeck==='14 inches (35 cm) or more';
+const sb=[S1,T,O,Pr,bmi!==null&&bmi>35,ag,nk].filter(Boolean).length;const strong=S1||O||Pr||(bmi!==null&&bmi>35)||nk;
+const ex=named('slX').filter(x=>x!=='None');
+const alc=(auditC()||0)>=3,sedU=named('sedat').filter(x=>x!=='None');
+const breath=sb>=2&&strong;
+if(sl.includes(slOpts[4]))F.push(['medical','Has fallen asleep or nearly fallen asleep while driving: a safety risk. Avoid driving when drowsy until this is checked by a physician.',false,null,'top',2,'Drowsy driving','Assess for sleep apnea, narcolepsy, sedating medications, and sleep deprivation; advise on driving safety.']);
+if(breath)F.push(M('Sleep-breathing pattern ('+[S1?'loud snoring':'',O?'observed pauses, choking or gasping':'',T?'daytime tiredness':'',Pr?'treated high blood pressure':'',bmi!==null&&bmi>35?'BMI '+bmi:'',nk?'neck 14 in or more':'',ag?'age over 50':''].filter(Boolean).join(', ')+(ex.length?'; also '+ex.join(', ').toLowerCase():'')+'): a physical pattern that can cause fatigue, low mood, and poor concentration; include in the physician referral.','Women-specific STOP-Bang '+sb+'/8 (positive at 2 or more, neck over 35 cm; Bauters 2020). Questionnaires under-detect sleep apnea in women; a negative screen does not exclude it. Home sleep apnea testing or polysomnography as the physician decides.'+(alc||sedU.length?' Alcohol'+(sedU.length?' and sedatives':'')+' worsen sleep apnea.':''),3,'Sleep-breathing pattern'));
+else if(sl.length&&(S1||O)&&!breath)F.push(['clinical','Snoring or observed breathing pauses reported, below the referral rule: ask in session about gasping, morning headaches, and unrefreshing sleep.',false,null,null,4,'Snoring: ask in session']);
+else if(ex.length>=2&&!breath)F.push(['clinical','Several night-time signs ('+ex.join(', ').toLowerCase()+'): sleep apnea often shows up this way in women; ask in session and consider physician referral.',false,null,null,4,'Night-time signs: ask']);
+if(sl.includes(slOpts[5]))F.push(M('Urge to move the legs in the evening or at night that eases with movement: a physical pattern that disrupts sleep; include in the physician referral.','Possible restless legs syndrome: check iron studies (ferritin). Most SSRIs and SNRIs, mirtazapine, and sedating antihistamines can cause or worsen it; relevant to any antidepressant referral.',3,'Restless legs pattern'));
+const nn=state.slNights,dd=state.slDur,dy=['Somewhat','Much','Very much'].includes(state.slDay);
+if(V.insom()&&['3–4','5–7'].includes(nn)&&dd==='3 months or more'&&dy)F.push(['clinical','Sleep trouble '+nn+' nights a week for 3 months or more, affecting the day ('+state.slDay.toLowerCase()+'): fits the frequency and duration criteria for insomnia disorder. CBT for insomnia (CBT-I) is first-line'+(breath?'; have the sleep-breathing pattern evaluated before using sleep restriction':'')+'. Treating hot flushes may also improve sleep.',false,null,null,3,'Insomnia pattern']);
+else if(V.insom()&&['3–4','5–7'].includes(nn))F.push(['clinical','Sleep trouble '+nn+' nights a week'+(dd==='Less than 3 months'?', for less than 3 months':'')+': monitor; sleep-focused strategies in session.',false,null,null,4,'Sleep trouble']);
+const insomPos=V.insom()&&['3–4','5–7'].includes(nn);
+if(insomPos&&V.p8pos())F.push(['clinical','Insomnia alongside thoughts of death (PHQ-9 item 9): insomnia is an independent suicide risk factor; include it in the risk assessment and safety plan.',false,null,null,2,'Insomnia + suicide-risk follow-up']);
+// Sedatives and opioids
+if(sedU.length){const strongSed=sedU.filter(x=>!/Cannabis/.test(x));
+if(strongSed.length&&alc)F.push(['clinical','Sedating medicines ('+strongSed.join('; ').toLowerCase()+') together with drinking above the cut-off (AUDIT-C '+auditC()+'): combined, they raise overdose, fall, and breathing risks. Discuss with the client and prescriber.',false,null,null,3,'Sedatives + alcohol']);
+if(strongSed.length&&V.p8pos())F.push(['clinical','Access to sedating medicines ('+strongSed.join('; ').toLowerCase()+') with thoughts of death: include in lethal-means counseling and the safety plan.',false,null,null,2,'Sedatives + suicide-risk follow-up']);
+F.push(['clinical','Uses '+sedU.join('; ').toLowerCase()+': ask about dose, duration, who prescribes it, and dependence. These can worsen mood, memory, and sleep quality over time; CBT-I can support any taper the prescriber plans.',false,null,null,4,'Sedative or opioid use'])}}
 // Obsessive-compulsive symptoms (gated)
 {const O=ociScore();const subTxt=O&&O.sub?O.sub.slice().sort((a,b)=>b[1]-a[1]).map(x=>x[0]+' '+x[1]+'/12').join(', '):'';
 const mental='The OCI-R covers mental rituals poorly (reviewing conversations, reassurance seeking, mental checking); ask about these directly.';
@@ -526,7 +568,7 @@ const T2=[/^PHQ-9 item 9 positive/,/^C-SSRS screener: (low|moderate|high)/,/^Cli
 const SH=[[/^Your answers suggest you may be at high risk/,'C-SSRS high risk'],[/^You said you have had thoughts of killing yourself/,'Active suicidal thoughts (C-SSRS item 2)'],[/^Your answers about suicidal thoughts/,'C-SSRS moderate risk'],[/^Thank you for answering these questions/,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^You reported: /,'Chest pain or breathlessness symptoms'],[/^You said you feel unsafe at home/,'Feels unsafe at home'],[/^Please answer the next question/,'C-SSRS timing question unanswered'],[/^Client prefers to discuss suicide/,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^Client prefers to discuss home/,'Home and relationship safety: discuss privately'],[/^Childhood experiences that still/,'Childhood adversity'],[/^PHQ-9 item 9 positive/,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^C-SSRS screener: (low|none)/i,'Suicide-risk follow-up (PHQ-9 item 9 positive)'],[/^C-SSRS screener/,'C-SSRS screener result'],[/^Check answers: pregnancy/,'Pregnancy answer doesn’t fit stage or age']];
 F.forEach(f=>{if(!f[5])f[5]=f[0]==='urgent'?1:f[0]==='prompt'?2:f[0]==='medical'?(f[4]?2:3):(T2.some(r=>r.test(f[1]))?2:4);
 if(!f[6]){const h=SH.find(x=>x[0].test(f[1]));let d=f[1].split(/: |\. /);let t=(d[0]==='Check answers'&&d[1]?'Check answers: '+d[1]:d[0]).replace(/\.$/,'');f[6]=h?h[1]:(t.length>80?t.slice(0,77).replace(/\s+\S*$/,'')+'…':t)}});
-if(F.some(f=>f[0]==='urgent'&&/^(Thoughts of death|Your answers suggest you may be at high risk)/.test(f[1])))F.forEach(f=>{if(f[5]>1&&(/^(C-SSRS|Client prefers to discuss suicide|PHQ-9 item 9 positive|History of suicide attempt|Self-harm without suicidal intent|Access to lethal means|Positive eating screen alongside|Higher priority \(alcohol)/.test(f[1])||(f[0]==='prompt'&&/suicid/.test(f[1]))))f[5]=1});
+if(F.some(f=>f[0]==='urgent'&&/^(Thoughts of death|Your answers suggest you may be at high risk)/.test(f[1])))F.forEach(f=>{if(f[5]>1&&(/^(C-SSRS|Client prefers to discuss suicide|PHQ-9 item 9 positive|History of suicide attempt|Self-harm without suicidal intent|Access to lethal means|Positive eating screen alongside|Higher priority \(alcohol|Insomnia alongside thoughts of death|Access to sedating medicines)/.test(f[1])||(f[0]==='prompt'&&/suicid/.test(f[1]))))f[5]=1});
 const rank=f=>({urgent:0,prompt:1,medical:f[4]==='summary'?1.5:f[4]==='top'?2:3,clinical:4}[f[0]]);
 return F.map((f,i)=>[f,i]).sort((a,b)=>a[0][5]-b[0][5]||rank(a[0])-rank(b[0])||a[1]-b[1]).map(x=>x[0])}
 const tierName={1:'Today',2:'Within 1 business day',3:'Within 7 days',4:'Next session'};
