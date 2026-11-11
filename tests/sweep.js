@@ -48,8 +48,14 @@ if(fl.some(f=>f[0]==='urgent'&&/^Thoughts of death/.test(f[1]))&&fl.some(f=>f[5]
 if(fl.some(f=>/^Thoughts of death/.test(f[1])&&/screener not completed/.test(f[6]))&&cssrsLevel(true)&&cssrsLevel(true).complete)bad('wrong urgent reason label','');
 {const hwRow=G.find(g=>g[0]==='Medical (hardware) check');const nMed=fl.filter(f=>f[0]==='medical'||(f[0]==='urgent'&&/^You reported: /.test(f[1]))).length;if(!hwRow)bad('hardware row missing','');else if(nMed&&!hwRow[1].includes(nMed+' signal'))bad('hardware count mismatch',hwRow[1]+' vs '+nMed);else if(!nMed&&!/^No physical/.test(hwRow[1]))bad('hardware says likely with no signals',hwRow[1])}
 if(fl.some(f=>f[0]==='medical'&&/thyroid|GSM|genitourinary syndrome|ovarian cancer|endometrial cancer/i.test(f[1])))bad('diagnosis named in medical pattern text',fl.find(f=>f[0]==='medical'&&/thyroid|GSM|genitourinary syndrome|ovarian cancer|endometrial cancer/i.test(f[1]))[1]);
-if(V.p8pos()&&isYes('cs2')&&fl.some(f=>/suicid|C-SSRS|item 9/i.test(f[1])&&f[5]>1))bad('active ideation not all Tier 1',fl.filter(f=>/suicid|C-SSRS|item 9/i.test(f[1])&&f[5]>1).map(f=>f[5]+' '+f[1].slice(0,50)).join(' | '));
-if(V.hitsOn()&&(Number(state.h0)>0||Number(state.h4)>0)&&!fl.some(f=>f[5]===1&&f[2]))bad('partner harm not Tier 1','');
+{const C=cssrsLevel(true);const low=C&&C.complete&&(C.level==='None'||C.level==='Low')&&!isYes('nssi');
+if(V.p8pos()&&low&&fl.some(f=>f[5]===1&&f[0]!=='urgent'&&/suicid|C-SSRS|item 9|thoughts of death/i.test(f[1])))bad('thoughts-only suicide item in Today',fl.find(f=>f[5]===1&&/suicid|C-SSRS|item 9/i.test(f[1]))[1].slice(0,80));
+if(V.p8pos()&&low&&fl.some(f=>f[0]==='urgent'&&/^Thoughts of death/.test(f[1])))bad('thoughts-only rated urgent','');
+if(V.p8pos()&&!low&&!fl.some(f=>f[0]==='urgent'&&/^(Thoughts of death|Your answers suggest)/.test(f[1])))bad('method/intent/behavior not urgent',C&&C.level);
+if(V.p8pos()&&low&&!fl.some(f=>f[5]<=2&&/^(PHQ-9 item 9 positive|Thank you for answering|You told us about thoughts)/.test(f[1])))bad('thoughts-only missing Tier 2 follow-up','')}
+{const hi=V.hitsOn()&&(Number(state.h0)>=2||Number(state.h4)>=2||(V.hitsAny()&&state.strang==='Yes'));const ptT1=fl.some(f=>f[5]===1&&f[2]&&/partner|Partner|Physical harm|Forced sexual|Strangulation|hurt you/.test(f[1]));
+if(hi&&!ptT1)bad('high-severity partner harm not Today','');
+if(!hi&&state.unsafe!=='Yes'&&fl.some(f=>f[5]===1&&f[2]&&/hurt you|^Physical harm|^Forced sexual/.test(f[1])))bad('low-severity partner answers rated Today','')}
 // 8 duplicates & junk text
 const seen=new Set();fl.forEach(f=>{if(seen.has(f[1]))bad('duplicate flag',f[1]);seen.add(f[1])});
 const rep=document.getElementById('report').innerText;

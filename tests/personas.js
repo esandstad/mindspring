@@ -221,9 +221,9 @@ ok('no alarm',!H(r.flags,/alarm/),r.flags);
 // P35 — 52, item 9 more than half the days, C-SSRS items 1+2 only (complete): urgent with explained reason, all suicide items in Today.
 r=await run(b,mk(`sel('age','52');[3,3,2,2,2,3,2,0,2].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',0);read();set('cs3',1);set('cs4',1);set('cs5',1);set('cs6',1);set('nssi',1);`));
 console.log('\nP35 frequent item 9 with low C-SSRS');
-ok('urgent label gives real reason',H(r.glance,/^Today: 3 items: PHQ-9 item 9 positive: active suicidal thoughts \(C-SSRS item 2\), item 9 more than half the days; Why urgent despite low screen; Suicide-risk follow-up/),r.glance);
+ok('thoughts without plan (v52): Tier 2, reasons listed',H(r.glance,/^Within 1 business day: .*Suicidal thoughts without plan or intent/)&&H(r.flags,/PHQ-9 item 9 positive with thoughts of killing herself \(C-SSRS item 2\), item 9 more than half the days, but no method, intent, plan/),r.glance);
 ok('no "screener not completed"',!H(r.glance,/screener not completed/),r.glance);
-ok('no 1-business-day suicide row',!H(r.glance,/^Within 1 business day/),r.glance);
+ok('no Today row for thoughts only',!H(r.glance,/^Today/),r.glance);
 // P36 — None is exclusive on new checklists (real clicks).
 {const c=await b.newContext();const p=await c.newPage();await p.goto('file://'+process.argv[2]);await p.evaluate(()=>{el('f_edGate').value='Yes';read();step=4;show()});
 await p.click('input[name=edComp][value="Made yourself vomit"]');await p.click('input[name=edComp][value="None"]');
@@ -263,8 +263,8 @@ console.log('\nP41 POI with bleeding again');
 ok('conflict Tier 2 + pregnancy flag kept in POI + MHT to 51 note',H(r.glance,/^Within 1 business day: 1 item: Stage answers conflict/)&&H(r.flags,/consider a pregnancy test/)&&H(r.flags,/Spontaneous pregnancy remains possible in POI\. Hormone therapy until about age 51/),r.flags);
 r=await run(b,mk(`sel('age','49');sel('stage','Cycles vary by 7+ days');[2,2,1,2,1,2,1,0,1].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',0);read();set('cs3',1);set('cs4',1);set('cs5',1);set('cs6',1);set('nssi',1);sel('means','Yes');sel('audit1','4 or more times a week');sel('audit2','3 or 4');sel('audit3','Monthly');`));
 console.log('\nP42 active ideation with item 9 = several days');
-ok('all suicide items + lethal means + alcohol in Today',H(r.glance,/^Today: 5 items: PHQ-9 item 9 positive: active suicidal thoughts \(C-SSRS item 2\);.*Access to lethal means; AUDIT-C 7\/12/)&&!H(r.glance,/^Within 1 business day/),r.glance);
-ok('client told not to wait for the report',r.live.length>0&&H(r.flags,/don’t wait for your psychotherapist to read this report/),r.flags);
+ok('thoughts + lethal means + alcohol: Tier 2, not Today (v52)',H(r.glance,/^Within 1 business day: .*Suicidal thoughts without plan or intent.*Access to lethal means.*AUDIT-C 7\/12/)&&!H(r.glance,/^Today/),r.glance);
+ok('client asked to contact within 1 business day',H(r.flags,/without a plan or intention to act\. Please contact your psychotherapist within the next business day/),r.flags);
 r=await run(b,mk(`sel('age','52');sel('unsafe','No');sel('hitsGate','Answer now');[3,0,4,0,1].forEach((v,i)=>set('h'+i,v));read();sel('strang','Yes');sel('ptGun','Not sure');`));
 console.log('\nP43 partner violence without "unsafe"');
 ok('harm, strangulation and client notice all Today (private)',H(r.glance,/^Today: 3 items: \[private\] Partner harm reported: client notice; \[private\] Strangulation by partner; \[private\] Physical harm/),r.glance);
@@ -312,4 +312,15 @@ ok('FDA combination warning flag',H(r.flags,/Opioid pain medicine together with 
 r=await run(b,mk(`sel('age','51');set('m0',3);sel('mht','No');`));
 console.log('\nP54 hot flush note pharmacology');
 ok('fezolinetant liver monitoring + elinzanetant + paroxetine 7.5 + progestogen',H(r.flags,/with a uterus, estrogen needs a progestogen.*paroxetine \(7\.5 mg.*boxed warning for liver injury.*monthly for 3 months.*Elinzanetant/),r.flags);
+
+// P55-P57 — v52 thresholds (clinician decision).
+r=await run(b,mk(`sel('age','50');[1,1,1,1,1,1,1,1,1].forEach((v,i)=>set('p'+i,v));read();set('cs1',0);set('cs2',0);read();set('cs3',0);set('cs4',1);set('cs5',1);set('cs6',1);set('nssi',1);`));
+console.log('\nP55 thoughts with a method (C-SSRS item 3)');
+ok('method -> Today',H(r.glance,/^Today: /)&&H(r.flags,/^urgent: Thoughts of death/),r.glance);
+r=await run(b,mk(`sel('age','52');sel('unsafe','No');sel('hitsGate','Answer now');[1,3,2,3,0].forEach((v,i)=>set('h'+i,v));read();sel('strang','No');sel('ptGun','No');`));
+console.log('\nP56 hurt rarely, insulted and screamed at fairly often');
+ok('no Today; E-HITS and harm within 1 business day, private',!H(r.glance,/^Today/)&&H(r.glance,/^Within 1 business day: .*\[private\]/)&&H(r.flags,/Private contact within 1 business day/),r.glance);
+r=await run(b,mk(`sel('age','52');sel('unsafe','No');sel('hitsGate','Answer now');[0,3,1,3,0].forEach((v,i)=>set('h'+i,v));`));
+console.log('\nP57 insults and screaming only (past 12 months)');
+ok('E-HITS positive -> within 7 days, private, no harm flags',H(r.glance,/^Within 7 days: .*\[private\]/)&&!H(r.glance,/^Today|^Within 1 business day/)&&!H(r.flags,/hurt you|Physical harm/),r.glance);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();

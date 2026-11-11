@@ -58,9 +58,9 @@ ok('14 period question hidden once surgery age entered',!(await p.isVisible('#q_
 await p.fill('#f_ovxAge','60');ok('14 surgery age > current age: note shown, falls back',await p.isVisible('#q_ovxAgeNote'));errs.push(...p.errs);
 // 15 prior attempt / frequency keep red notice
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',N);await R(p,'cs6',N);ok('15 baseline low: amber',(await live(p)).includes('Please share this with your clinician'));
-await go(p,5);await p.click('input[name=history][value="Prior suicide attempt"]');ok('15 prior attempt: red notice returns',(await live(p)).includes('Safety notice'),await live(p));
+await go(p,5);await p.click('input[name=history][value="Prior suicide attempt"]');ok('15 prior attempt with low screen (v52): Tier 2 amber notice, not red',(await live(p)).includes('Please contact your psychotherapist soon')&&!(await live(p)).includes('Safety notice'),await live(p));
 ok('15 prior attempt + item 6 No: mismatch flag',has(await fl(p),/Mismatch: “prior suicide attempt”/));
-await p.click('input[name=history][value="None"]');await go(p,1);await R(p,'p8',2);ok('15 item 9 "more than half the days": red notice',(await live(p)).includes('Safety notice'));
+await p.click('input[name=history][value="None"]');await go(p,1);await R(p,'p8',2);ok('15 item 9 "more than half the days" with low screen (v52): amber, not red',(await live(p)).includes('Please contact your psychotherapist soon')&&!(await live(p)).includes('Safety notice'));
 ok('16 filename has no name',await p.evaluate(()=>{state.name='Jane Doe';return !/Jane/.test(fileName())}));
 // v18 additions
 p=await page(b);await p.fill('#f_age','37');await p.fill('#f_date','2026-11-08');await go(p,4);await p.selectOption('#f_stage','Regular cycles');await p.fill('#f_last','2026-08-20');
@@ -75,11 +75,11 @@ ok('20 carcinoid + prolactinoma items flag',has(await fl(p),/flushing with diarr
 await p.selectOption('#f_mht','Yes');ok('21 MHT context flag',has(await fl(p),/hormone therapy: low hot-flush/));
 ok('22 meds question asks for medicines, supplements and dose',/supplements/.test(await p.locator('#q_meds').innerText())&&/dose/.test(await p.locator('#q_meds').innerText()));errs.push(...p.errs);
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',N);await R(p,'cs6',N);await go(p,5);await p.click('input[name=history][value="Self-harm without wanting to die"]');
-ok('23 past self-harm history: red notice',(await live(p)).includes('Safety notice'),await live(p));
+ok('23 past self-harm history with low screen (v52): amber notice',(await live(p)).includes('Please contact your psychotherapist soon'),await live(p));
 p=await page(b);await go(p,1);await R(p,'p8',1);await R(p,'cs1',Y);await R(p,'cs2',Y);await R(p,'cs3',N);await R(p,'cs4',N);await R(p,'cs5',N);await R(p,'cs6',N);
-ok('24 active ideation (C-SSRS item 2) is urgent since v46: red notice',JSON.stringify(await live(p))==='["Safety notice"]',await live(p));
-ok('24 active ideation tells client not to wait for the report',await p.evaluate(()=>/don’t wait for your psychotherapist/.test(document.getElementById('safetyLive').innerText)));
-await p.evaluate(()=>{CONFIG.redForActiveIdeation=true;safetyLive()});ok('24 setting true: red',(await live(p)).includes('Safety notice'));errs.push(...p.errs);
+ok('24 active ideation without method/intent/plan (v52): amber Tier 2 notice',JSON.stringify(await live(p))==='["Please contact your psychotherapist soon"]',await live(p));
+ok('24 amber notice asks for contact within 1 business day and gives 988',await p.evaluate(()=>/within the next business day/.test(document.getElementById('safetyLive').innerText)&&/988/.test(document.getElementById('safetyLive').innerText)));
+await p.evaluate(()=>{const x=document.querySelector('input[name=cs3][value="0"]');x.checked=true;read();safetyLive()});ok('24 adding a method (C-SSRS item 3, moderate) makes it red/Today',(await live(p)).includes('Safety notice'));errs.push(...p.errs);
 // v19 additions
 p=await page(b);await p.fill('#f_age','35');await go(p,4);await p.selectOption('#f_stage','No period for 3–11 months');ok('25 baseline age 35, 3+ months: POI prompt',has(await fl(p),/under age 40/));
 await go(p,5);await p.click('input[name=hormoneTx][value="GnRH medication (for example, Lupron)"]');ok('25 GnRH masks period flags',!has(await fl(p),/under age 40/));
