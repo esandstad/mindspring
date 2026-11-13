@@ -22,3 +22,8 @@ Answers are processed only on the client's device. The app never sends answers a
 3. Republish `src/build/artifact.html` to the Claude-hosted copy if you use it.
 
 Licensing of included instruments (MRS, C-SSRS, E-HITS, ASRS, PC-PTSD-5, PCL-5, SCOFF) should be confirmed by the clinician before wide use.
+
+## Pending before leaving beta
+- **Bipolar screen (deferred):** the planned instrument is the CIDI 3.0 Bipolar Screening Scale (Kessler 2006; © WHO). Permission to reproduce must be requested from Prof. Ronald Kessler, Harvard Medical School, before it is embedded. Gate it behind PHQ-9 ≥ 10, a depression/PMDD/postpartum history, antidepressant use, or a positive ASRS. Confirm the narrow and broad cut-offs from the 2006 paper.
+- Confirm licensing for the MRS, C-SSRS, E-HITS, ASRS, PC-PTSD-5, PCL-5, OCI-R, SCOFF, and STOP-Bang (commercial use needs the developers' permission).
+- Rename the app (the MINDSPRING trademark conflicts).
