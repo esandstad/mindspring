@@ -81,7 +81,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v52',
+  version:'v53',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -149,7 +149,7 @@ const groups={
   cardio:['Chest pain, pressure, or tightness','Shortness of breath','Fainting or near-fainting','New or unexplained palpitations','None'],
   other:['Heat intolerance, tremor, or unexplained weight loss','Unexplained weight loss with fever or drenching night sweats','Episodes of severe headache, sweating, and racing heart','Flushing with diarrhea or wheezing','Milky nipple discharge, or headaches with changes in vision','None'],
   hormoneTx:['Hysterectomy (uterus removed), ovaries kept','Both ovaries removed','Chemotherapy','Pelvic radiation','Tamoxifen','Aromatase inhibitor (for example, letrozole or anastrozole)','GnRH medication (for example, Lupron)','Breast, endometrial, or other hormone-sensitive cancer','None'],
-  history:['Prior depression','PMDD','ADHD (diagnosed)','Attention problems since childhood, never diagnosed','Postpartum depression','Anxiety disorder','Bipolar disorder / mania / hypomania','Prior suicide attempt','Self-harm without wanting to die','Psychiatric hospitalization','Family history of mood disorder or suicide','None'],
+  history:['Prior depression','PMDD','ADHD (diagnosed)','Attention problems since childhood, never diagnosed','Postpartum depression','Postpartum psychosis','Anxiety disorder','Bipolar disorder / mania / hypomania','Prior suicide attempt','Self-harm without wanting to die','Psychiatric hospitalization','Family history of mood disorder or suicide','None'],
   contraNow:['Pill, patch, or ring','Hormonal IUD','Contraceptive implant','None'],
   pregnancy:['Gestational diabetes','Preeclampsia or pregnancy-related high blood pressure','Preterm birth','None']
 };
@@ -523,7 +523,7 @@ else if(thySx)F.push(M('Heat intolerance, tremor, or unexplained weight loss: ph
 const otherSx=named('other').filter(x=>x!=='Heat intolerance, tremor, or unexplained weight loss'&&!(cancerTx.length&&x==='Unexplained weight loss with fever or drenching night sweats'));
 if(otherSx.length)F.push(M('Other physical symptoms reported ('+otherSx.join('; ').toLowerCase()+'): include in the physician referral.','',null,'Other physical symptoms'));
 if(state.cog==='Yes')F.push(M('Memory or thinking changes that are worsening, impairing, or noticed by others: get a medical assessment; do not assume menopause or mood is the cause.','',null,'Worsening memory or thinking'));
-const stg=likelyStage();const peri=stg.key==='early'||stg.key==='late';const vuln=['Prior depression','PMDD','Postpartum depression'].filter(x=>has('history',x));
+const stg=likelyStage();const peri=stg.key==='early'||stg.key==='late';const vuln=['Prior depression','PMDD','Postpartum depression','Postpartum psychosis','Bipolar disorder / mania / hypomania'].filter(x=>has('history',x));
 if(state.onset==='Before cycle changes'&&(peri||isPost))F.push(['clinical','Mood or thinking changes began before cycle changes: hormonal transition is less likely to be the main driver. Consider other contributors (life stress, recurrent depression, sleep, medical causes) alongside menopause symptoms.']);
 if(peri&&vuln.length)F.push(['clinical','Perimenopause with a history of '+vuln.join(', ').toLowerCase()+': the group at highest risk for perimenopausal depression. Monitor mood through the transition, even if current scores are low.']);
 const adhd=has('history','ADHD (diagnosed)'),attnWorse=state.cog==='Yes'||Number(state.p6)>=2||Number(state.m6)>=2;
@@ -547,7 +547,11 @@ if(V.pcPos()&&Number(state.pl15)>=2)F.push(['clinical','PCL-5 item 16 (taking ri
 {const st=likelyStage();if(((PC!==null&&PC>=3)||(PCL&&PCL.total>=31))&&(st.key==='early'||st.key==='late'))F.push(['clinical','Trauma symptoms during perimenopause: lower estradiol has been linked to weaker fear extinction, and trauma history to more hot flashes, insomnia, and depression in the transition. Treat both in parallel; neither explains the other away.'])}
 if(state.aceQ==='Yes')F.push(['clinical','Childhood experiences that still affect the client: explore childhood adversity in session (the full ACE questionnaire can be used there).']);
 else if(state.aceQ==='Prefer to discuss in session')F.push(['clinical','Client prefers to discuss childhood experiences in session.']);
-if(has('history','Bipolar disorder / mania / hypomania'))F.push(['clinical','History of bipolar disorder or mania/hypomania: assess before any antidepressant is considered.']);
+{const bp=has('history','Bipolar disorder / mania / hypomania'),ppp=has('history','Postpartum psychosis');
+if(bp||ppp){const ps=score('p',9);const peri2=['early','late'].includes(likelyStage().key);
+F.push(['clinical',(bp?'History of bipolar disorder or mania/hypomania':'History of postpartum psychosis (closely linked to bipolar disorder)')+': assess before any antidepressant is considered, including SSRIs or SNRIs prescribed for hot flashes, which can also trigger mood elevation.'+(peri2?' Depressive episodes tend to increase during the menopause transition in bipolar disorder; monitor closely.':'')+(ps!==null&&ps>=10?' Current depressive symptoms (PHQ-9 '+ps+') make an antidepressant referral more likely, so coordinate with the prescriber.':''),false,null,null,ps!==null&&ps>=10?3:4,bp?'Bipolar history':'Postpartum psychosis history']);
+const hormonal=state.mht==='Yes'||contraList().length>0||Number(state.m0)>=3;
+if(hormonal||(ps!==null&&ps>=10))F.push(M('Mood-disorder history that affects which hormone or antidepressant treatments are safe: tell the physician before starting or changing them.','Bipolar-spectrum history: avoid antidepressant monotherapy, including SSRIs or SNRIs for hot flashes, without mood-stabilizer coverage or psychiatric input. If taking lamotrigine: estrogen-containing contraceptives lower levels by about 50%, and menopausal estrogen may also lower them; starting or stopping estrogen can change mood stability or cause toxicity. New manic symptoms in midlife: rule out thyroid disease, corticosteroids, stimulants, and other medical causes.',3,'Mood-disorder history and hormone or antidepressant treatment'))}}
 if(has('history','Prior suicide attempt'))F.push(['clinical','History of suicide attempt: higher-risk group; follow up regardless of current PHQ-9 total or screener level.']);
 if(has('history','Prior suicide attempt')&&state.cs6==='1')F.push(['clinical','Mismatch: “prior suicide attempt” ticked in history, but C-SSRS item 6 (ever done anything to end your life) answered No. Clarify directly.']);
 if(has('history','Self-harm without wanting to die'))F.push(['clinical','History of self-harm without suicidal intent: ask about recent episodes and current urges.']);

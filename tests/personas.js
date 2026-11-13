@@ -323,4 +323,14 @@ ok('no Today; E-HITS and harm within 1 business day, private',!H(r.glance,/^Toda
 r=await run(b,mk(`sel('age','52');sel('unsafe','No');sel('hitsGate','Answer now');[0,3,1,3,0].forEach((v,i)=>set('h'+i,v));`));
 console.log('\nP57 insults and screaming only (past 12 months)');
 ok('E-HITS positive -> within 7 days, private, no harm flags',H(r.glance,/^Within 7 days: .*\[private\]/)&&!H(r.glance,/^Today|^Within 1 business day/)&&!H(r.flags,/hurt you|Physical harm/),r.glance);
+
+// P58 — v53 bipolar history without a licensed screen.
+r=await run(b,mk(`sel('age','47');sel('stage','Cycles vary by 7+ days');chk('history','Bipolar disorder / mania / hypomania');[2,2,1,2,1,1,1,1,0].forEach((v,i)=>set('p'+i,v));set('m0',3);sel('mht','No');`));
+console.log('\nP58 bipolar history in perimenopause, PHQ 11, severe hot flushes');
+ok('bipolar flag Tier 3 with hot-flash SSRI caution and transition note',H(r.flags,/^clinical: History of bipolar disorder.*SSRIs or SNRIs prescribed for hot flashes.*increase during the menopause transition.*PHQ-9 11/)&&H(r.glance,/^Within 7 days: .*Bipolar history/),r.flags);
+ok('risk window includes bipolar',H(r.flags,/Perimenopause with a history of bipolar disorder/),r.flags);
+ok('physician note: lamotrigine-estrogen and antidepressant monotherapy',H(r.flags,/^medical: Mood-disorder history.*lamotrigine.*about 50%/),r.flags);
+ok('no diagnosis name in medical pattern text',!H(r.flags.filter(f=>/^medical/.test(f)).map(f=>f.split(' || ')[0]),/bipolar/i),r.flags);
+r=await run(b,mk(`sel('age','44');chk('history','Postpartum psychosis');`));
+ok('postpartum psychosis history flagged, Tier 4',H(r.flags,/History of postpartum psychosis \(closely linked to bipolar disorder\)/)&&H(r.glance,/^Next session: .*Postpartum psychosis history/),r.flags);
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();
