@@ -333,4 +333,15 @@ ok('physician note: lamotrigine-estrogen and antidepressant monotherapy',H(r.fla
 ok('no diagnosis name in medical pattern text',!H(r.flags.filter(f=>/^medical/.test(f)).map(f=>f.split(' || ')[0]),/bipolar/i),r.flags);
 r=await run(b,mk(`sel('age','44');chk('history','Postpartum psychosis');`));
 ok('postpartum psychosis history flagged, Tier 4',H(r.flags,/History of postpartum psychosis \(closely linked to bipolar disorder\)/)&&H(r.glance,/^Next session: .*Postpartum psychosis history/),r.flags);
+
+// P59-P61 — v54 fatigue and iron (ASH 2026).
+r=await run(b,mk(`sel('age','44');sel('stage','Cycles vary by 7+ days');set('m6',2);chk('bleed','Heavy or prolonged bleeding');chk('feRisk','Running or other endurance exercise most weeks');sel('feTest','Yes, I was told it was normal');sel('feVal','22');`));
+console.log('\nP59 44, exhausted, heavy periods, runner, ferritin 22 called normal');
+ok('pattern flag Tier 3 with ferritin and ASH 2026 note',H(r.flags,/^medical: Ongoing tiredness with heavy or prolonged periods, running or other endurance exercise most weeks; ferritin 22 ng\/mL reported.*don’t start iron supplements.*ASH 2026.*≤30 ng\/mL.*Reported ferritin 22 ng\/mL meets the ≤30 threshold.*Evaluate the heavy bleeding/),r.flags);
+ok('Tier 3',H(r.glance,/^Within 7 days: .*Tiredness with low-iron risk factors/),r.glance);
+r=await run(b,mk(`sel('age','58');sel('stage','No period for 12+ months');set('p3',2);sel('feTest','Yes, I was told it was low');`));
+console.log('\nP60 postmenopausal, low iron');
+ok('postmenopausal low iron -> Tier 2 with GI blood-loss note',H(r.glance,/^Within 1 business day: .*Tiredness with low-iron risk factors/)&&H(r.flags,/gastrointestinal blood loss/),r.glance);
+r=await run(b,mk(`sel('age','50');set('m6',0);set('p3',0);`));
+ok('no iron questions without tiredness',!r.report.includes('ferritin blood test'),'');
 console.log(`\n${pass} passed, ${fail} failed`);await b.close()})();

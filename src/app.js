@@ -3,7 +3,7 @@ document.documentElement.classList.add('js');
 
 /* ---------- Settings Erick can edit ---------- */
 const CONFIG={
-  version:'v53',
+  version:'v54',
   clinician:'Erick Sandstad, Psychotherapist',
   // Say plainly who reads submitted reports and how fast. Edit to match your real workflow.
   reviewNote:'Your clinician sees this report only after you send it. It is not checked between sessions, so if you need help sooner, use the crisis numbers on this page.',
@@ -94,6 +94,7 @@ const htOpts=Array.from({length:25},(_,k)=>{const n=54+k;return Math.floor(n/12)
 const htIn=v=>{const m=/^(\d) ft (\d+) in$/.exec(v||'');return m?Number(m[1])*12+Number(m[2]):null};
 const slExtra=['Waking up gasping or choking','Morning headaches','Getting up to urinate 2 or more times a night','Sleep that doesn’t refresh me, even with enough time in bed','None'];
 const sedOpts=['Sleeping pills (for example, zolpidem or eszopiclone)','Benzodiazepines (for example, alprazolam, lorazepam, clonazepam, diazepam)','Opioid pain medicines (for example, oxycodone, hydrocodone, tramadol)','Gabapentin or pregabalin','Cannabis or CBD for sleep, pain, or anxiety','None'];
+const feRiskOpts=['Running or other endurance exercise most weeks','Little or no red meat (vegetarian or vegan)','Craving ice, or non-food things like clay or starch','More hair shedding than usual','Out of breath or heart racing with light activity, like climbing stairs','Gave blood in the past year','Weight-loss surgery, or a stomach or bowel condition such as celiac disease','None'];
 const V={
   p8pos:()=>answered(state.p8)&&Number(state.p8)>0,
   phqAny:()=>phq.some((_,i)=>Number(state['p'+i])>0),
@@ -107,6 +108,7 @@ V.ed=()=>state.edGate==='Yes';
 V.oc=()=>state.ocGate==='Yes';
 V.gu=()=>state.guGate==='Yes';
 V.sedQ=()=>V.insom()||V.p8pos()||(score('g',7)||0)>=10||(score('p',9)||0)>=10||(auditC()||0)>=3;
+V.fatigue=()=>Number(state.m6)>=2||Number(state.p3)>=2||named('slp').includes('Often tired, fatigued, or sleepy during the day');
 V.insom=()=>Number(state.m2)>=2||Number(state.p2)>=2;
 V.slAny=()=>named('slp').some(x=>x!==slOpts[1]&&x!==slOpts[4]&&x!=='None')||(named('slp').includes(slOpts[1])&&validAge()&&Number(state.age)>50);
 // OCI-R (Foa et al., 2002): 18 items 0-4, total 0-72, cut-off 21; six 3-item subscales (0-12)
@@ -183,6 +185,10 @@ const fields=[
   ['slNights','select','In the past month, how many nights a week do you have trouble falling asleep, staying asleep, or waking too early and not getting back to sleep?',['0–1','2','3–4','5–7'],{show:V.insom}],
   ['slDur','select','How long has this been going on?',['Less than 3 months','3 months or more','Not sure'],{show:()=>V.insom()&&['3–4','5–7'].includes(state.slNights)}],
   ['slDay','select','How much does poor sleep affect your day (energy, mood, concentration, work, or relationships)?',['Not at all','A little','Somewhat','Much','Very much'],{show:V.insom}],
+  ['feNote','note','You mentioned feeling tired or exhausted. A few quick questions help check for a common physical cause.',null,{show:V.fatigue,tone:'info'}],
+  ['feRisk','checks','Do any of these apply to you? (Tick all that apply)',feRiskOpts,{show:V.fatigue}],
+  ['feTest','select','Has a doctor checked your iron stores (a ferritin blood test) in the past year?',['No','Not sure','Yes, I was told it was normal','Yes, I was told it was low'],{show:V.fatigue}],
+  ['feVal','number','If you know your ferritin number, enter it (ng/mL, optional)',null,{show:()=>V.fatigue()&&/^Yes/.test(state.feTest||'')}],
   ['guGate','select','In the past 3 months, have you had ongoing stomach or belly pain, bloating, feeling full quickly, constipation, or diarrhea?',['No','Yes','Prefer to discuss in session']],
   ['guNew','radio','When did these stomach or bowel symptoms start?',['Within the past year','More than a year ago','Not sure'],{show:V.gu}],
   ['guPattern','select','Which best describes your stools most of the time?',guPatterns,{show:V.gu}],
@@ -485,6 +491,16 @@ F.push(M('Hot flushes and sweating rated '+mrsOpts[Number(state.m0)].toLowerCase
 {const pv=Array.from({length:9},(_,i)=>state['p'+i]);if(pv.every(answered)&&new Set(pv).size===1&&Number(pv[0])>0)F.push(['clinical','All nine PHQ-9 items answered the same ('+freq[Number(pv[0])].toLowerCase()+'). This may be accurate or a same-answer pattern; go through the items in session before relying on the total'+(Number(pv[0])===1?', which sits just below the usual cut-off of 10':'')+'.',false,null,null,4,'PHQ-9 same answer on every item'])}
 {const gs=score('g',7),mi=[['irritability',Number(state.m4)],['anxiety',Number(state.m5)]].filter(x=>x[1]>=2);if(gs!==null&&gs<=4&&mi.length)F.push(['clinical','GAD-7 '+gs+' (minimal) but MRS '+mi.map(x=>x[0]+' '+mrsOpts[x[1]].toLowerCase()).join(' and ')+'. Ask directly about anxiety and irritability; menopause-linked irritability may not be captured by the GAD-7.',false,null,null,4,'GAD-7 vs MRS anxiety mismatch'])}
 {const ps=score('p',9),psy=mrsScore(mrsScales[1]);if(ps!==null&&ps<10&&psy.score!==null&&psy.score>=7)F.push(['clinical','MRS psychological '+psy.score+'/16 (severe) but PHQ-9 '+ps+' (below 10). Mood symptoms may be under-reported on the PHQ-9 or concentrated in irritability, anxiety, and exhaustion; clarify in session.',false,null,null,4,'MRS psychological vs PHQ-9 mismatch'])}
+// Fatigue and iron (ASH 2026 ferritin thresholds)
+if(V.fatigue()){const fr=named('feRisk').filter(x=>x!=='None'),heavyB=has('bleed','Heavy or prolonged bleeding'),restrE=named('edComp').includes('Fasted or ate very little for a day or more')||(V.ed()&&isYes('sc2'));
+const rlsP=['1','2'].includes(state.rlsGate)&&named('rlsFit').filter(x=>x!=='None of these').length===3&&state.rlsMimic==='1';
+const fvRaw=Number(state.feVal),fv=state.feVal!==''&&fvRaw>0&&fvRaw<2000?fvRaw:null;
+const risks=[heavyB?'heavy or prolonged periods':'',restrE?'restricted eating':'',rlsP?'restless legs pattern':'',...fr.map(x=>x.split(',')[0].replace(/ \(.*\)$/,'').toLowerCase())].filter(Boolean);
+const lowFe=state.feTest==='Yes, I was told it was low'||(fv!==null&&(fv<=30||(fv<=50&&(heavyB||fr.length||rlsP))));
+const st3=likelyStage();const postFe=st3.post||(validAge()&&Number(state.age)>=55);
+if(risks.length||lowFe){F.push(M('Ongoing tiredness'+(risks.length?' with '+risks.join(', '):'')+(fv!==null?'; ferritin '+fv+' ng/mL reported':state.feTest==='Yes, I was told it was low'?'; iron reported as low':'')+': low iron stores are a common physical cause of fatigue, low mood, poor concentration, and breathlessness, even when blood counts are normal. Include in the physician referral. Please don’t start iron supplements long-term without a blood test.',
+'ASH 2026 (Blood Advances, Powers et al.): iron deficiency at ferritin ≤30 ng/mL in adults, with ≤50 appropriate with heavy menstrual bleeding, symptoms, or other risk factors, with or without anemia. Many lab ranges still start at 12–15 ng/mL.'+(fv!==null?' Reported ferritin '+fv+' ng/mL'+(fv<=30?' meets the ≤30 threshold.':fv<=50?' is within the ≤50 range for symptomatic or at-risk patients.':'.'):'')+(state.feTest==='Yes, I was told it was normal'&&fv===null?' A prior result was called "normal": check the actual value against the new thresholds.':'')+' Ferritin rises with inflammation; add transferrin saturation (<20%) if inflammation is possible.'+(postFe?' Without menstrual losses, iron deficiency needs evaluation for gastrointestinal blood loss and malabsorption (including celiac disease).':heavyB?' Evaluate the heavy bleeding as well.':'')+' Oral iron on alternate days may absorb better and cause fewer side effects.',postFe&&lowFe?2:3,'Tiredness with low-iron risk factors',postFe&&lowFe?'top':null))}
+else if(state.feTest==='Yes, I was told it was normal'&&fv===null)F.push(['clinical','Ongoing tiredness with a ferritin result called "normal": the client may ask for the actual number, since newer guidance uses higher thresholds.',false,null,null,4,'Ask for the ferritin number'])}
 // Severe scores (standalone; v47 per external review)
 {const ps=score('p',9),gs=score('g',7);if(ps!==null&&ps>=20)F.push(['clinical','PHQ-9 '+ps+' (severe range): treatment referral recommended (antidepressant evaluation and psychotherapy are first-line; screen for bipolar disorder before any antidepressant).',false,null,null,2,'PHQ-9 severe ('+ps+')']);
 else if(ps!==null&&ps>=15)F.push(['clinical','PHQ-9 '+ps+' (moderately severe): consider treatment referral alongside psychotherapy; screen for bipolar disorder before any antidepressant.',false,null,null,3,'PHQ-9 moderately severe ('+ps+')']);
